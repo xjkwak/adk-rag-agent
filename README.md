@@ -64,6 +64,53 @@ Before running the agent, you need to set up authentication with Google Cloud:
    pip install -r requirements.txt
    ```
 
+3. **Set up Environment Variables**:
+   
+   Copy the sample environment file and configure it with your settings:
+   ```bash
+   cp .env.sample .env
+   ```
+   
+   Edit the `.env` file with your Google Cloud configuration:
+   ```bash
+   # Required: Your Google Cloud Project ID
+   GOOGLE_CLOUD_PROJECT=your-project-id-here
+   
+   # Required: Your Google Cloud region
+   GOOGLE_CLOUD_LOCATION=us-central1
+   ```
+   
+   **Optional**: If you want to use alternative model providers or LiteLLM for model routing, uncomment and configure:
+   ```bash
+   # OpenAI API Key (if using OpenAI models)
+   # OPENAI_API_KEY=your-openai-api-key-here
+   
+   # Anthropic API Key (if using Claude models)
+   # ANTHROPIC_API_KEY=your-anthropic-api-key-here
+   
+   # LiteLLM Configuration
+   # LITELLM_MODEL_LIST_PATH=/path/to/model_list.json
+   # LITELLM_MASTER_KEY=your-litellm-master-key-here
+   ```
+
+## Running the Application
+
+To start both the backend and frontend servers:
+
+```bash
+make dev
+```
+
+This command will:
+- Start the ADK backend server on port 8000
+- Start the React frontend development server
+- Set up proxy configuration for API communication
+
+**Alternative commands:**
+- `make dev-backend` - Start only the backend server
+- `make dev-frontend` - Start only the frontend server
+- `make playground` - Start the ADK web playground on port 8501
+
 ## Using the Agent
 
 The agent provides the following functionality through its tools:
