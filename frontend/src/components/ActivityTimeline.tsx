@@ -136,7 +136,7 @@ export function ActivityTimeline({
             className="flex items-center justify-start text-sm w-full cursor-pointer gap-2 text-neutral-100"
             onClick={() => setIsTimelineCollapsed(!isTimelineCollapsed)}
           >
-            <span>Research</span>
+            <span>Checking</span>
             {websiteCount > 0 && (
               <span className="text-xs bg-neutral-600 px-2 py-0.5 rounded-full">
                 {websiteCount} websites

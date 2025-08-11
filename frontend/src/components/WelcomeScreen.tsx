@@ -13,29 +13,26 @@ export function WelcomeScreen({
   onCancel,
 }: WelcomeScreenProps) {
   return (
-    // This container fills the space provided by its parent layout (e.g., the left panel in a split view)
-    // and centers its content (the card) within itself.
     <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden relative">
       
-      {/* The "Card" Container */}
-      {/* This div now holds the card's styling: background, blur, padding, border, shadow, and hover effect */}
+      {/* Main card container with purple border */}
       <div className="w-full max-w-2xl z-10
                       bg-neutral-900/50 backdrop-blur-md 
-                      p-8 rounded-2xl border border-neutral-700 
+                      p-8 rounded-2xl border border-purple-500/30 
                       shadow-2xl shadow-black/60 
-                      transition-all duration-300 hover:border-neutral-600">
+                      transition-all duration-300">
         
-        {/* Header section of the card */}
+        {/* Header section with Knowledge HUB title and star icons */}
         <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-3">
-            ✨ Gemini FullStack - ADK 🚀
+          <h1 className="text-4xl font-bold text-purple-300 flex items-center justify-center gap-3">
+          🧠 Knowledge HUB 🚀
           </h1>
-          <p className="text-lg text-neutral-300 max-w-md mx-auto">
+          <p className="text-lg text-purple-200 max-w-md mx-auto">
             Turns your questions into comprehensive reports!
           </p>
         </div>
 
-        {/* Input form section of the card */}
+        {/* Input form section */}
         <div className="mt-8">
           <InputForm onSubmit={handleSubmit} isLoading={isLoading} context="homepage" />
           {isLoading && (
@@ -43,7 +40,7 @@ export function WelcomeScreen({
               <Button
                 variant="outline"
                 onClick={onCancel}
-                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 border-red-700/50" // Enhanced cancel button
+                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 border-red-700/50"
               >
                 Cancel
               </Button>
