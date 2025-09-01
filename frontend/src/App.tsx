@@ -82,7 +82,7 @@ export default function App() {
 
   const createSession = async (): Promise<{userId: string, sessionId: string, appName: string}> => {
     const generatedSessionId = uuidv4();
-    const response = await fetch(`/api/apps/rag_agent/users/u_999/sessions/${generatedSessionId}`, {
+    const response = await fetch(`/api/apps/knowledge_hub/users/u_999/sessions/${generatedSessionId}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -329,7 +329,7 @@ export default function App() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            app_name: "rag_agent",
+            app_name: "knowledge_hub",
             user_id: currentUserId,
             session_id: currentSessionId,
             new_message: {

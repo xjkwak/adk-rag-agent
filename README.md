@@ -1,10 +1,10 @@
-# Vertex AI RAG Agent with ADK
+# Knowledge HUB
 
 This repository contains a Google Agent Development Kit (ADK) implementation of a Retrieval Augmented Generation (RAG) agent using Google Cloud Vertex AI.
 
 ## Overview
 
-The Vertex AI RAG Agent allows you to:
+Knowledge HUB allows you to:
 
 - Query document corpora with natural language questions
 - List available document corpora

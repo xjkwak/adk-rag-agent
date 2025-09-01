@@ -1,5 +1,5 @@
 """
-Vertex AI RAG Agent
+Knowledge HUB
 
 A package for interacting with Google Cloud Vertex AI RAG capabilities.
 """

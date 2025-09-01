@@ -1,5 +1,5 @@
 """
-Configuration settings for the RAG Agent.
+Configuration settings for Knowledge HUB.
 
 These settings are used by the various RAG tools.
 Vertex AI initialization is performed in the package's __init__.py
