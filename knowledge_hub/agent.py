@@ -1,6 +1,7 @@
 from google.adk.agents import Agent
 from google.adk.planners import BuiltInPlanner
 
+from .config import USE_LOCAL_RAG
 from .tools.add_data import add_data
 from .tools.create_corpus import create_corpus
 from .tools.delete_corpus import delete_corpus
@@ -14,7 +15,9 @@ root_agent = Agent(
     name="RagAgent",
     # Using Gemini 2.5 Flash for best performance with RAG operations
     model="gemini-2.5-flash",
-    description="Vertex AI RAG Agent",
+    description="Local Chroma RAG Agent"
+    if USE_LOCAL_RAG
+    else "Vertex AI RAG Agent",
     planner=BuiltInPlanner(
         thinking_config=genai_types.ThinkingConfig(include_thoughts=False)
     ),
@@ -76,7 +79,8 @@ root_agent = Agent(
     4. `add_data`: Add new data to a corpus
        - Parameters:
          - corpus_name: The name of the corpus to add data to (required, but can be empty to use current corpus)
-         - paths: List of Google Drive or GCS URLs
+         - paths: List of Google Drive URLs, `gs://bucket/object` URIs, or public HTTPS GCS object URLs
+           (`https://storage.googleapis.com/bucket/object` or `https://bucket.storage.googleapis.com/object`)
     
     5. `get_corpus_info`: Get detailed information about a specific corpus
        - Parameters:
@@ -103,6 +107,11 @@ root_agent = Agent(
     - Whenever possible, use the full resource name returned by the list_corpora tool when calling other tools.
     - Using the full resource name instead of just the display name will ensure more reliable operation.
     - Do not tell users to use full resource names in your responses - just use them internally in your tool calls.
+    - Google Drive imports: if add_data fails with an internal/server error, tell the user to share the Drive file
+      (Viewer) with the project's **Vertex AI RAG Data Service Agent** (find its email under IAM with
+      "Include Google-provided role grants" enabled). RAG Engine reads Drive as that service account, not the user's login.
+    - Local RAG mode (USE_LOCAL_RAG): corpora use the same tool shapes; add_data supports gs://, https:// PDF/text,
+      public GCS HTTPS URLs converted to gs://, and absolute local file paths — not Google Drive/Docs links.
     
     ## Communication Guidelines
     

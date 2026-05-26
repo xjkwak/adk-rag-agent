@@ -6,12 +6,8 @@ import logging
 import re
 
 from google.adk.tools.tool_context import ToolContext
-from vertexai import rag
 
-from ..config import (
-    LOCATION,
-    PROJECT_ID,
-)
+from ..config import PROJECT_ID, LOCATION, USE_LOCAL_RAG
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +24,13 @@ def get_corpus_resource_name(corpus_name: str) -> str:
         str: The full resource name of the corpus
     """
     logger.info(f"Getting resource name for corpus: {corpus_name}")
+
+    if USE_LOCAL_RAG:
+        from ..local_rag import store as local_store
+
+        return local_store.resolve_corpus_resource_name(corpus_name)
+
+    from vertexai import rag
 
     # If it's already a full resource name with the projects/locations/ragCorpora format
     if re.match(r"^projects/[^/]+/locations/[^/]+/ragCorpora/[^/]+$", corpus_name):
@@ -70,6 +73,13 @@ def check_corpus_exists(corpus_name: str, tool_context: ToolContext) -> bool:
     Returns:
         bool: True if the corpus exists, False otherwise
     """
+    if USE_LOCAL_RAG:
+        from ..local_rag import store as local_store
+
+        return local_store.corpus_exists(corpus_name, tool_context)
+
+    from vertexai import rag
+
     # Check state first if tool_context is provided
     if tool_context.state.get(f"corpus_exists_{corpus_name}"):
         return True

@@ -187,6 +187,7 @@ const AiMessageBubble: React.FC<AiMessageBubbleProps> = ({
   // Condition for DIRECT DISPLAY (interactive_planner_agent OR final report)
   const shouldDisplayDirectly = 
     agent === "interactive_planner_agent" || 
+    agent === "RagAgent" ||
     (agent === "report_composer_with_citations" && finalReportWithCitations);
   
   if (shouldDisplayDirectly) {

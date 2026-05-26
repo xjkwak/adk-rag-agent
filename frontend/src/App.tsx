@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ChatMessagesView } from "@/components/ChatMessagesView";
 
+// Set VITE_SHOW_TOOL_EVENTS=true in frontend/.env to show rag_query call/response in the timeline.
+const SHOW_TOOL_EVENTS = import.meta.env.VITE_SHOW_TOOL_EVENTS === "true";
+const DIRECT_DISPLAY_AGENTS = new Set(["interactive_planner_agent", "RagAgent"]);
+
 // Update DisplayData to be a string type
 type DisplayData = string | null;
 interface MessageWithAgent {
@@ -231,7 +235,7 @@ export default function App() {
       currentAgentRef.current = agent;
     }
 
-    if (functionCall) {
+    if (SHOW_TOOL_EVENTS && functionCall) {
       const functionCallTitle = `Function Call: ${functionCall.name}`;
       console.log('[SSE HANDLER] Adding Function Call timeline event:', functionCallTitle);
       setMessageEvents(prev => new Map(prev).set(aiMessageId, [...(prev.get(aiMessageId) || []), {
@@ -240,8 +244,8 @@ export default function App() {
       }]));
     }
 
-    if (functionResponse) {
-      const functionResponseTitle = `Function Response: ${functionResponse.name}`;
+    if (SHOW_TOOL_EVENTS && functionResponse) {
+        const functionResponseTitle = `Function Response: ${functionResponse.name}`;
       console.log('[SSE HANDLER] Adding Function Response timeline event:', functionResponseTitle);
       setMessageEvents(prev => new Map(prev).set(aiMessageId, [...(prev.get(aiMessageId) || []), {
         title: functionResponseTitle,
@@ -250,14 +254,14 @@ export default function App() {
     }
 
     if (textParts.length > 0 && agent !== "report_composer_with_citations") {
-      if (agent !== "interactive_planner_agent") {
+      if (!DIRECT_DISPLAY_AGENTS.has(agent)) {
         const eventTitle = getEventTitle(agent);
         console.log('[SSE HANDLER] Adding Text timeline event for agent:', agent, 'Title:', eventTitle, 'Data:', textParts.join(" "));
         setMessageEvents(prev => new Map(prev).set(aiMessageId, [...(prev.get(aiMessageId) || []), {
           title: eventTitle,
           data: { type: 'text', content: textParts.join(" ") }
         }]));
-      } else { // interactive_planner_agent text updates the main AI message
+      } else { // Direct-display agents update the main AI message
         for (const text of textParts) {
           accumulatedTextRef.current += text + " ";
           setMessages(prev => prev.map(msg =>
@@ -530,7 +534,10 @@ export default function App() {
               <div className="text-center space-y-4">
                 <h2 className="text-2xl font-bold text-red-400">Backend Unavailable</h2>
                 <p className="text-neutral-300">
-                  Unable to connect to backend services at localhost:8000
+                  Unable to connect to the ADK API through the dev server proxy. Run{" "}
+                  <code className="text-neutral-100">make dev</code> from the repo root, or set{" "}
+                  <code className="text-neutral-100">ADK_API_PORT</code> if the API uses a non-default
+                  port.
                 </p>
                 <button 
                   onClick={() => window.location.reload()} 

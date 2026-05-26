@@ -1,15 +1,15 @@
 """
-Tool for listing all available Vertex AI RAG corpora.
+Tool for listing all available RAG corpora (Vertex or local Chroma).
 """
 
 from typing import Dict, List, Union
 
-from vertexai import rag
+from ..config import USE_LOCAL_RAG
 
 
 def list_corpora() -> dict:
     """
-    List all available Vertex AI RAG corpora.
+    List all available RAG corpora.
 
     Returns:
         dict: A list of available corpora and status, with each corpus containing:
@@ -18,6 +18,13 @@ def list_corpora() -> dict:
             - create_time: When the corpus was created
             - update_time: When the corpus was last updated
     """
+    if USE_LOCAL_RAG:
+        from ..local_rag import store as local_store
+
+        return local_store.list_corpora_dict()
+
+    from vertexai import rag
+
     try:
         # Get the list of corpora
         corpora = rag.list_corpora()

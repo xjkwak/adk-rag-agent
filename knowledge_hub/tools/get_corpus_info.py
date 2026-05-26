@@ -3,8 +3,8 @@ Tool for retrieving detailed information about a specific RAG corpus.
 """
 
 from google.adk.tools.tool_context import ToolContext
-from vertexai import rag
 
+from ..config import USE_LOCAL_RAG
 from .utils import check_corpus_exists, get_corpus_resource_name
 
 
@@ -34,6 +34,13 @@ def get_corpus_info(
 
         # Get the corpus resource name
         corpus_resource_name = get_corpus_resource_name(corpus_name)
+
+        if USE_LOCAL_RAG:
+            from ..local_rag import store as local_store
+
+            return local_store.get_corpus_info_dict(corpus_resource_name, corpus_name)
+
+        from vertexai import rag
 
         # Try to get corpus details first
         corpus_display_name = corpus_name  # Default if we can't get actual display name

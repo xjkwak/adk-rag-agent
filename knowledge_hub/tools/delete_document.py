@@ -1,10 +1,10 @@
 """
-Tool for deleting a specific document from a Vertex AI RAG corpus.
+Tool for deleting a specific document from a RAG corpus.
 """
 
 from google.adk.tools.tool_context import ToolContext
-from vertexai import rag
 
+from ..config import USE_LOCAL_RAG
 from .utils import check_corpus_exists, get_corpus_resource_name
 
 
@@ -14,7 +14,7 @@ def delete_document(
     tool_context: ToolContext,
 ) -> dict:
     """
-    Delete a specific document from a Vertex AI RAG corpus.
+    Delete a specific document from a RAG corpus.
 
     Args:
         corpus_name (str): The full resource name of the corpus containing the document.
@@ -36,10 +36,15 @@ def delete_document(
         }
 
     try:
-        # Get the corpus resource name
         corpus_resource_name = get_corpus_resource_name(corpus_name)
 
-        # Delete the document
+        if USE_LOCAL_RAG:
+            from ..local_rag import store as local_store
+
+            return local_store.delete_document_dict(corpus_resource_name, document_id)
+
+        from vertexai import rag
+
         rag_file_path = f"{corpus_resource_name}/ragFiles/{document_id}"
         rag.delete_file(rag_file_path)
 

@@ -35,6 +35,9 @@ ENV/
 # Logs
 *.log
 
+# Local Chroma RAG store (optional; remove if you want to version small corpora)
+data/local_rag/
+
 # Local configuration
 .env.local
 .env.development.local

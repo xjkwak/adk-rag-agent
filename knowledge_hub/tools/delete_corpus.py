@@ -1,10 +1,10 @@
 """
-Tool for deleting a Vertex AI RAG corpus when it's no longer needed.
+Tool for deleting a RAG corpus when it's no longer needed.
 """
 
 from google.adk.tools.tool_context import ToolContext
-from vertexai import rag
 
+from ..config import USE_LOCAL_RAG
 from .utils import check_corpus_exists, get_corpus_resource_name
 
 
@@ -14,7 +14,7 @@ def delete_corpus(
     tool_context: ToolContext,
 ) -> dict:
     """
-    Delete a Vertex AI RAG corpus when it's no longer needed.
+    Delete a RAG corpus when it's no longer needed.
     Requires confirmation to prevent accidental deletion.
 
     Args:
@@ -43,10 +43,15 @@ def delete_corpus(
         }
 
     try:
-        # Get the corpus resource name
         corpus_resource_name = get_corpus_resource_name(corpus_name)
 
-        # Delete the corpus
+        if USE_LOCAL_RAG:
+            from ..local_rag import store as local_store
+
+            return local_store.delete_corpus_dict(corpus_resource_name, tool_context)
+
+        from vertexai import rag
+
         rag.delete_corpus(corpus_resource_name)
 
         # Remove from state by setting to False

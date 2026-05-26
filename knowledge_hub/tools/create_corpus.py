@@ -1,15 +1,12 @@
 """
-Tool for creating a new Vertex AI RAG corpus.
+Tool for creating a new RAG corpus (Vertex or local Chroma).
 """
 
 import re
 
 from google.adk.tools.tool_context import ToolContext
-from vertexai import rag
 
-from ..config import (
-    DEFAULT_EMBEDDING_MODEL,
-)
+from ..config import DEFAULT_EMBEDDING_MODEL, USE_LOCAL_RAG
 from .utils import check_corpus_exists
 
 
@@ -18,7 +15,7 @@ def create_corpus(
     tool_context: ToolContext,
 ) -> dict:
     """
-    Create a new Vertex AI RAG corpus with the specified name.
+    Create a new RAG corpus with the specified name.
 
     Args:
         corpus_name (str): The name for the new corpus
@@ -35,6 +32,14 @@ def create_corpus(
             "corpus_name": corpus_name,
             "corpus_created": False,
         }
+
+    if USE_LOCAL_RAG:
+        from ..local_rag import store as local_store
+
+        display_name = re.sub(r"[^a-zA-Z0-9_-]", "_", corpus_name)
+        return local_store.create_corpus_dict(display_name, tool_context)
+
+    from vertexai import rag
 
     try:
         # Clean corpus name for use as display name

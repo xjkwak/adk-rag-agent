@@ -1,16 +1,12 @@
 """
-Tool for querying Vertex AI RAG corpora and retrieving relevant information.
+Tool for querying RAG corpora and retrieving relevant information.
 """
 
 import logging
 
 from google.adk.tools.tool_context import ToolContext
-from vertexai import rag
 
-from ..config import (
-    DEFAULT_DISTANCE_THRESHOLD,
-    DEFAULT_TOP_K,
-)
+from ..config import DEFAULT_DISTANCE_THRESHOLD, DEFAULT_TOP_K, USE_LOCAL_RAG
 from .utils import check_corpus_exists, get_corpus_resource_name
 
 
@@ -20,7 +16,7 @@ def rag_query(
     tool_context: ToolContext,
 ) -> dict:
     """
-    Query a Vertex AI RAG corpus with a user question and return relevant information.
+    Query a RAG corpus with a user question and return relevant information.
 
     Args:
         corpus_name (str): The name of the corpus to query. If empty, the current corpus will be used.
@@ -44,6 +40,13 @@ def rag_query(
 
         # Get the corpus resource name
         corpus_resource_name = get_corpus_resource_name(corpus_name)
+
+        if USE_LOCAL_RAG:
+            from ..local_rag import store as local_store
+
+            return local_store.rag_query_dict(corpus_resource_name, query)
+
+        from vertexai import rag
 
         # Configure retrieval parameters
         rag_retrieval_config = rag.RagRetrievalConfig(
