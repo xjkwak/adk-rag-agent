@@ -1,0 +1,32 @@
+# Python / tooling
+.venv
+__pycache__
+*.py[cod]
+.mypy_cache
+.ruff_cache
+.pytest_cache
+*.egg-info
+
+# Local secrets and data
+knowledge_hub/.env
+.env
+.env.*
+!.env.sample
+local_rag_data/
+data/local_rag/
+
+# Frontend (backend build context)
+frontend/node_modules
+frontend/dist
+
+# Git / IDE
+.git
+.gitignore
+.cursor
+*.md
+!DEPLOY.md
+
+# Large or irrelevant for images
+local_rag_data/chromadb/
+**/*.bin
+agent-tools/

@@ -171,6 +171,76 @@ This command will:
 - `make dev-frontend` - Start only the frontend server
 - `make playground` - Start the ADK web playground on port 8501
 
+### Run with Docker Compose (containers)
+
+Matches production layout (nginx UI + ADK API) on your machine. Requires [Docker](https://docs.docker.com/get-docker/) and `gcloud auth application-default login` for Vertex Gemini.
+
+```bash
+cp .env.docker.example .env.docker
+# Edit .env.docker (GOOGLE_CLOUD_PROJECT, etc.)
+
+docker compose up --build
+```
+
+| URL | Service |
+|-----|---------|
+| http://localhost:8081/app/ | Chat UI |
+| http://localhost:8080/docs | ADK API docs |
+
+Seed the Aegis demo corpus into the mounted volume (once):
+
+```bash
+docker compose run --rm api python scripts/seed_aegis_demo.py
+```
+
+Stop: `docker compose down`. Full GCP deploy: [DEPLOY.md](DEPLOY.md).
+
+## Aegis Manufacturing Oracle (demo)
+
+The Knowledge Hub agent is configured as the **Aegis Manufacturing Oracle**: it compares Manufacturing SOPs and rules to production C# and SQL using a single corpus, **`aegis-demo`**.
+
+### Seed the demo corpus (local RAG)
+
+With `USE_LOCAL_RAG=1` in `knowledge_hub/.env`:
+
+```bash
+python scripts/seed_aegis_demo.py
+```
+
+This ingests six files from `assets/`:
+
+- `Aegis_SOP_IPC_Compliance.md`, `Aegis_Manufacturing_Rules.md`
+- `WorkOrderService.cs`, `LineValidationService.cs`
+- `sp_CloseWorkOrder.sql`, `sp_ValidateLineClearance.sql`
+
+Verify in chat: ask the agent to `list corpora` or `get corpus info` for `aegis-demo` (expect six source files, multiple chunks).
+
+### Detail level (UI)
+
+Use the **Low / High** selector above the chat input:
+
+- **Low** — business impact, plain language (production managers, executives).
+- **High** — code, SQL names, remediation (engineers, auditors).
+
+The UI sends `[detail:low]` or `[detail:high]` with each message; the agent honors that tag.
+
+### Golden demo questions
+
+Run these after seeding to validate the PoC:
+
+1. **Line clearance gap** — *Does our code validate line clearance before starting production, per SOP-402 and manufacturing rules?* (Expect GAP, CRITICAL, cites SOP + `LineValidationService.cs` / `sp_ValidateLineClearance.sql`.)
+2. **Work order / audit trail** — *What audit trail gaps exist when closing work orders? Compare rules to `WorkOrderService` and `sp_CloseWorkOrder`.* (Expect missing or weak procedures if present in assets.)
+3. **Role / detail** — Same question with **Low** vs **High** detail; answers should differ in technical depth.
+
+### Agent test questions
+
+For broader regression and role-based testing, use [`test/Test-Questions.md`](test/Test-Questions.md). That file is a curated question bank (production manager, engineer, auditor, architect, executive) meant to exercise the agent after the demo corpus is seeded—checking retrieval quality, compliance reasoning, and appropriate tone at each detail level.
+
+### Deferred (not in this PoC)
+
+- Obsidian vault sync
+- User-selectable OpenAI vs Gemini API keys (agent uses **Gemini 2.5 Flash** via Vertex)
+
 ## Using the Agent
 
 The agent provides the following functionality through its tools:

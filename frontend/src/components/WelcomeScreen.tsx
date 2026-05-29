@@ -25,7 +25,7 @@ export function WelcomeScreen({
         {/* Header section with Knowledge HUB title and star icons */}
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold text-purple-300 flex items-center justify-center gap-3">
-          🧠 Knowledge HUB 🚀
+          🧠 Knowledge HUB 1.0 🚀
           </h1>
           <p className="text-lg text-purple-200 max-w-md mx-auto">
             Turns your questions into comprehensive reports!

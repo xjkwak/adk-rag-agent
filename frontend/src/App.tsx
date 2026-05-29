@@ -286,8 +286,17 @@ export default function App() {
     }
   };
 
-  const handleSubmit = useCallback(async (query: string, model?: string, effort?: string) => {
+  const handleSubmit = useCallback(async (
+    query: string,
+    detailLevel?: "low" | "high",
+    _model?: string,
+    _effort?: string,
+  ) => {
     if (!query.trim()) return;
+
+    const agentQuery = detailLevel
+      ? `[detail:${detailLevel}] ${query}`
+      : query;
 
     setIsLoading(true);
     try {
@@ -337,7 +346,7 @@ export default function App() {
             user_id: currentUserId,
             session_id: currentSessionId,
             new_message: {
-              parts: [{ text: query }],
+              parts: [{ text: agentQuery }],
               role: "user"
             },
             streaming: false

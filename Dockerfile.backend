@@ -1,0 +1,35 @@
+# Backend: ADK API server + local Chroma RAG (USE_LOCAL_RAG=1)
+# Build from repo root: docker build -f Dockerfile.backend -t IMAGE .
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=8080
+
+WORKDIR /app
+
+# System deps for chromadb / onnx runtime (minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Agent package and seed assets (for optional startup seed)
+COPY knowledge_hub ./knowledge_hub
+COPY scripts ./scripts
+COPY assets ./assets
+
+# UID 1000 matches Cloud Run GCS FUSE volume mount (required for LOCAL_RAG_DATA_DIR writes)
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /data/local_rag \
+    && chown -R appuser:appuser /app /data/local_rag
+
+USER appuser
+
+# Cloud Run sets PORT; default matches Cloud Run convention
+EXPOSE 8080
+
+# Production server (adk api_server uses reload=True, which fails on Cloud Run)
+CMD ["python", "scripts/run_api_server.py"]

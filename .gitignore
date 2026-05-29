@@ -46,6 +46,10 @@ data/local_rag/
 
 # API keys and secrets - ensure your .env file with API keys is not committed
 .env
+.env.docker
+
+# Docker Compose local Chroma data
+local_rag_data/
 
 # OS specific
 .DS_Store

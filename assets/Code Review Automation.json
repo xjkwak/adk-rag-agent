@@ -1,0 +1,512 @@
+{
+  "name": "Code Review Automation V3",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "09a69652-e56c-4a26-9172-266926edaac6",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1616,
+        112
+      ],
+      "id": "e26b45f9-50a1-446f-a779-cdc7b20dbc0b",
+      "name": "Jira-transition-webhook",
+      "webhookId": "09a69652-e56c-4a26-9172-266926edaac6"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9fa8291e-baae-4c19-a706-36df30e45232",
+              "name": "Issue_key",
+              "value": "={{ $json.body.issue.key }}",
+              "type": "string"
+            },
+            {
+              "id": "4253872f-0290-47f1-9f61-9e1d8980f689",
+              "name": "Issue_Description",
+              "value": "={{ $json.body.issue.fields.description }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1424,
+        112
+      ],
+      "id": "a0bf8d33-89b2-44cd-9012-0f8955abd9f5",
+      "name": "Simplify JSON"
+    },
+    {
+      "parameters": {
+        "resource": "issueComment",
+        "operation": "getAll",
+        "issueKey": "={{ $json.Issue_key }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        112
+      ],
+      "id": "d8d3d878-5fb4-4d9e-bac0-4bd25075c82b",
+      "name": "Get comments from Jira key",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "8UczlEvOFd5EM91n",
+          "name": "Jira coderoad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Este código toma todos los comentarios recibidos y se queda solo con el más reciente\nconst allComments = $input.all();\nif (allComments.length === 0) return { error: \"No se encontraron comentarios\" };\n\n// Tomamos el último de la lista\nconst latestComment = allComments[allComments.length - 1];\n\nreturn {\n  code_snippet: latestComment.json.body\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        112
+      ],
+      "id": "9506e08e-c575-4c06-abe1-f11f567a1e94",
+      "name": "Get Last Comment1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Jira ticket:\n {{ $('Simplify JSON').item.json.Issue_Description }}\n\nCode:\n{{ $json.Issue_code }}",
+        "options": {
+          "systemMessage": "You are the \"Aegis Smart-Validator Agent.\" Your mission is to act as an automated Senior Tech Lead that bridges the gap between Business Requirements (Jira) and Technical Implementation (Code).\n\nYour Workflow:\nJira Analysis: Parse the \"Acceptance Criteria\" (AC) to understand what the business expects.\n\nCode Audit: Review C#/.NET code for logic, security, and performance.\n\nCross-Referencing: Verify if the code satisfies 100% of the Jira requirements.\n\nTechnical Guardrails (Aegis Standards):\nPerformance: Flag N+1 queries (DB calls inside loops) and suggest .\nAsNoTracking() for read-only operations.\nStability: Ensure proper async/await usage and transaction handling for data integrity.\nCompliance: Ensure specific exceptions or logging mentioned in the ticket are implemented.\n\nOutput Format (Strict JSON):\nJSON\n{\n\"analysis_score\": \"0-100\",\n\"alignment_status\": \"Approved | Needs Revision | Failed\",\n\"business_gap\": \"List any Acceptance Criteria missing in the code\",\n\"technical_findings\": [\n{ \"issue\": \"\", \"severity\": \"Critical/Medium\", \"suggested_fix\": \"\" }\n],\n\"executive_summary\": \"A 2-sentence summary for the Product Owner on why this is or isn't ready for Production.\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -624,
+        112
+      ],
+      "id": "fe57da22-dfc8-4fca-8bc0-4cba81b1190d",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        480
+      ],
+      "id": "3925f1ff-1e77-4da5-be65-36c9545fac67",
+      "name": "Google Gemini Chat Model3",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5nlsabmcMtX4NMrr",
+          "name": "Gemini API LB Coderoad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Simplify JSON').item.json.Issue_key }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -576,
+        304
+      ],
+      "id": "bd9f2803-e2db-459f-9661-ee9b06f77498",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9fa8291e-baae-4c19-a706-36df30e45232",
+              "name": "Issue_code",
+              "value": "={{ $json.code_snippet.content[0].content[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -832,
+        112
+      ],
+      "id": "41c3d3db-cfe4-456b-a48a-8e6fa7577b78",
+      "name": "Simplify Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "try {\n  // 1. Obtenemos la salida del agente\n  let text = $json.output;\n\n  // 2. Extraemos el JSON (limpiamos si trae bloques de código ```json)\n  const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n  if (!jsonMatch) throw new Error(\"No se encontró JSON\");\n  \n  const data = JSON.parse(jsonMatch[0]);\n\n  // 3. Extraemos el status para el nodo IF\n  const status = (data.alignment_status || 'Needs Revision').trim();\n  const statusEmoji = status === 'Approved' ? '✅' : '⚠️';\n  const score = data.analysis_score || 'N/A';\n\n  // 4. Construimos el mensaje en Markdown compatible con Jira\n  let message = `*Agent QA supervisor:* Hi, after my initial review my comments are:\\n\\n`;\n\n  message += `*${statusEmoji} AUDIT SUMMARY*\\n`;\n  message += `_________________________________\\n`;\n  message += `* *Score:* ${score}/100\\n`;\n  message += `* *Status:* *${status.toUpperCase()}*\\n\\n`;\n\n  message += `*📝 EXECUTIVE SUMMARY*\\n`;\n  message += `${data.executive_summary || 'No summary.'}\\n\\n`;\n\n  message += `*🎯 BUSINESS GAP*\\n`;\n  message += `${data.business_gap || 'None.'}\\n\\n`;\n\n  // 5. Hallazgos técnicos\n  if (data.technical_findings && data.technical_findings.length > 0) {\n      message += `*🛠 TECHNICAL FINDINGS*\\n`;\n      data.technical_findings.forEach((finding) => {\n          const sev = finding.severity || 'Low';\n          const severityIcon = sev === 'High' ? '🔴' : (sev === 'Medium' ? '🟠' : '🟡');\n          message += `* *${severityIcon} ${finding.issue}* (Sev: ${sev})\\n`;\n          message += `** _Fix:_ ${finding.suggested_fix}\\n`;\n      });\n  } else {\n      message += `*✅ No technical issues found.*\\n`;\n  }\n\n  message += `\\n_________________________________\\n`;\n  message += `🚀 _Sent by Aegis Intelligence System_`;\n\n  // 6. Retornamos ambos campos\n  return { \n    jira_markdown: message, \n    status: status // ESTE es el que conectas al nodo IF\n  };\n\n} catch (error) {\n  return { \n    jira_markdown: \"⚠️ *Error:* \" + error.message,\n    status: \"Error\"\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        112
+      ],
+      "id": "d4bbb9da-ecc0-455d-8a7a-4d3625571897",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "issueComment",
+        "issueKey": "={{ $('Simplify JSON').item.json.Issue_key }}",
+        "comment": "={{ $json.jira_markdown }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        112
+      ],
+      "id": "d5f294ec-5575-4998-b5ee-57b5d9470190",
+      "name": "Add a comment",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "8UczlEvOFd5EM91n",
+          "name": "Jira coderoad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e64670b0-ff4a-462b-af24-d4af651ce8da",
+              "leftValue": "={{ $('Code in JavaScript').item.json.status }}",
+              "rightValue": "Approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        112
+      ],
+      "id": "1b1804da-0207-43f3-89e6-b09448d9037d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "issueKey": "={{ $('Simplify JSON').item.json.Issue_key }}",
+        "updateFields": {
+          "statusId": {
+            "__rl": true,
+            "value": "31",
+            "mode": "list",
+            "cachedResultName": "In Progress"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        352,
+        240
+      ],
+      "id": "a8a311f4-af12-45ae-b340-834c39cff32d",
+      "name": "return to in progress",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "8UczlEvOFd5EM91n",
+          "name": "Jira coderoad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "issueKey": "={{ $('Simplify JSON').item.json.Issue_key }}",
+        "updateFields": {
+          "statusId": {
+            "__rl": true,
+            "value": "71",
+            "mode": "list",
+            "cachedResultName": "QA Progress"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        352,
+        16
+      ],
+      "id": "f6aeb3f2-70b2-47c5-a782-78419bd129fe",
+      "name": "transition to QA Progress",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "8UczlEvOFd5EM91n",
+          "name": "Jira coderoad"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -736,
+        304
+      ],
+      "id": "c6f39fc2-c63b-4f71-87f0-41bef4aa1586",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "HdY6oTExOt2nWge5",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "=*TICKET NUMBER:* {{ $('Simplify JSON').item.json.Issue_key }}\n*STATUS:* {{ $json.status.toUpperCase() }}\n\n*analysis:*\n{{ $json.jira_markdown }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -48,
+        320
+      ],
+      "id": "a3e5a97f-2497-46b8-80cf-1c48b5354924",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "08f25ddf-78a3-49db-a518-f9074bf7266b",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "fP8NTdgiQcrG1fES",
+          "name": "LB OpenAI key personal"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Jira-transition-webhook": {
+      "main": [
+        [
+          {
+            "node": "Simplify JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simplify JSON": {
+      "main": [
+        [
+          {
+            "node": "Get comments from Jira key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get comments from Jira key": {
+      "main": [
+        [
+          {
+            "node": "Get Last Comment1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Last Comment1": {
+      "main": [
+        [
+          {
+            "node": "Simplify Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model3": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simplify Code": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Add a comment",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add a comment": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "transition to QA Progress",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "return to in progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e1a6c43e-ea04-443b-b9f5-064d6b174740",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "53520f503d9f4ceaccbb440b529c672dc80e9975ec8f1cc24017f4336bcfe62c"
+  },
+  "id": "472WN6pMxel1omvM",
+  "tags": []
+}

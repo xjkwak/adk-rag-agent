@@ -1,0 +1,52 @@
+# Local development: backend + frontend containers on one network.
+# Usage:
+#   cp .env.docker.example .env.docker   # optional overrides
+#   # Uses knowledge_hub/.env for GCP project (must be your real project ID)
+#   docker compose up --build
+#   open http://localhost:8081/app/
+#
+# Seed corpus (once): docker compose run --rm api python scripts/seed_aegis_demo.py
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: knowledge-hub-api:local
+    container_name: knowledge-hub-api
+    ports:
+      - "8080:8080"
+    env_file:
+      - path: .env.docker
+        required: false
+      - path: knowledge_hub/.env
+        required: false
+    environment:
+      PORT: "8080"
+      LOCAL_RAG_DATA_DIR: /data/local_rag
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/adc.json
+    volumes:
+      - ./local_rag_data:/data/local_rag
+      - ${GCLOUD_ADC_FILE:-${HOME}/.config/gcloud/application_default_credentials.json}:/tmp/adc.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/list-apps')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  ui:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: knowledge-hub-ui:local
+    container_name: knowledge-hub-ui
+    ports:
+      - "8081:8080"
+    environment:
+      PORT: "8080"
+      API_UPSTREAM_HOST: api:8080
+      API_UPSTREAM_SCHEME: http
+    depends_on:
+      api:
+        condition: service_healthy

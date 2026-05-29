@@ -1,16 +1,30 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Send } from "lucide-react";
 
+export type DetailLevel = "low" | "high";
+
 interface InputFormProps {
-  onSubmit: (query: string) => void;
+  onSubmit: (query: string, detailLevel?: DetailLevel) => void;
   isLoading: boolean;
-  context?: 'homepage' | 'chat';
+  context?: "homepage" | "chat";
 }
 
-export function InputForm({ onSubmit, isLoading, context = 'homepage' }: InputFormProps) {
+export function InputForm({
+  onSubmit,
+  isLoading,
+  context = "homepage",
+}: InputFormProps) {
   const [inputValue, setInputValue] = useState("");
+  const [detailLevel, setDetailLevel] = useState<DetailLevel>("low");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -22,7 +36,7 @@ export function InputForm({ onSubmit, isLoading, context = 'homepage' }: InputFo
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim() && !isLoading) {
-      onSubmit(inputValue.trim());
+      onSubmit(inputValue.trim(), detailLevel);
       setInputValue("");
     }
   };
@@ -35,12 +49,31 @@ export function InputForm({ onSubmit, isLoading, context = 'homepage' }: InputFo
   };
 
   const placeholderText =
-    context === 'chat'
-      ? "Respond to the Agent, refine the plan, or type 'Looks good'..."
-      : "Ask about what documents are available";
+    context === "chat"
+      ? "Ask about compliance gaps, line clearance, work orders..."
+      : "Ask the Oracle about SOPs, rules, or production code";
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-xs text-purple-300/80">
+        <span className="shrink-0">Detail</span>
+        <Select
+          value={detailLevel}
+          onValueChange={(v) => setDetailLevel(v as DetailLevel)}
+          disabled={isLoading}
+        >
+          <SelectTrigger
+            size="sm"
+            className="h-8 w-[120px] border-purple-500/30 bg-neutral-800/50 text-purple-100"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="flex items-end space-x-3">
         <div className="flex-1 relative">
           <Textarea
@@ -55,9 +88,9 @@ export function InputForm({ onSubmit, isLoading, context = 'homepage' }: InputFo
                        focus:border-purple-400/50 focus:ring-purple-400/20"
           />
         </div>
-        <Button 
-          type="submit" 
-          size="icon" 
+        <Button
+          type="submit"
+          size="icon"
           disabled={isLoading || !inputValue.trim()}
           className="w-10 h-10 rounded-full border border-purple-500/30 bg-neutral-800/50 
                      hover:bg-purple-900/20 hover:border-purple-400/50
