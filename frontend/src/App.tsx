@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from 'uuid';
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ChatMessagesView } from "@/components/ChatMessagesView";
+import { AppControls } from "@/components/AppControls";
 
 // Set VITE_SHOW_TOOL_EVENTS=true in frontend/.env to show rag_query call/response in the timeline.
 const SHOW_TOOL_EVENTS = import.meta.env.VITE_SHOW_TOOL_EVENTS === "true";
@@ -495,27 +496,27 @@ export default function App() {
   const BackendLoadingScreen = () => (
     <div className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden relative">
       <div className="w-full max-w-2xl z-10
-                      bg-neutral-900/50 backdrop-blur-md 
+                      bg-card/80 backdrop-blur-md 
                       p-8 rounded-2xl border border-purple-500/30 
-                      shadow-2xl shadow-black/60">
+                      shadow-2xl shadow-black/10 dark:shadow-black/60">
         
         <div className="text-center space-y-6">
-          <h1 className="text-4xl font-bold text-purple-300 flex items-center justify-center gap-3">
+          <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-300 flex items-center justify-center gap-3">
             🧠 Knowledge HUB 🚀
           </h1>
           
           <div className="flex flex-col items-center space-y-4">
             {/* Spinning animation */}
             <div className="relative">
-              <div className="w-16 h-16 border-4 border-neutral-600 border-t-purple-500 rounded-full animate-spin"></div>
+              <div className="w-16 h-16 border-4 border-muted border-t-purple-500 rounded-full animate-spin"></div>
               <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-r-purple-400 rounded-full animate-spin" style={{animationDirection: 'reverse', animationDuration: '1.5s'}}></div>
             </div>
             
             <div className="space-y-2">
-              <p className="text-xl text-purple-200">
+              <p className="text-xl text-purple-800 dark:text-purple-200">
                 Waiting for backend to be ready...
               </p>
-              <p className="text-sm text-purple-300/60">
+              <p className="text-sm text-purple-700/70 dark:text-purple-300/60">
                 This may take a moment on first startup
               </p>
             </div>
@@ -533,7 +534,8 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen bg-black text-neutral-100 font-sans antialiased">
+    <div className="flex h-screen bg-background text-foreground font-sans antialiased">
+      <AppControls />
       <main className="flex-1 flex flex-col overflow-hidden w-full">
         <div className={`flex-1 overflow-y-auto ${(messages.length === 0 || isCheckingBackend) ? "flex" : ""}`}>
           {isCheckingBackend ? (
@@ -541,11 +543,11 @@ export default function App() {
           ) : !isBackendReady ? (
             <div className="flex-1 flex flex-col items-center justify-center p-4">
               <div className="text-center space-y-4">
-                <h2 className="text-2xl font-bold text-red-400">Backend Unavailable</h2>
-                <p className="text-neutral-300">
+                <h2 className="text-2xl font-bold text-red-500 dark:text-red-400">Backend Unavailable</h2>
+                <p className="text-muted-foreground">
                   Unable to connect to the ADK API through the dev server proxy. Run{" "}
-                  <code className="text-neutral-100">make dev</code> from the repo root, or set{" "}
-                  <code className="text-neutral-100">ADK_API_PORT</code> if the API uses a non-default
+                  <code className="text-foreground">make dev</code> from the repo root, or set{" "}
+                  <code className="text-foreground">ADK_API_PORT</code> if the API uses a non-default
                   port.
                 </p>
                 <button 

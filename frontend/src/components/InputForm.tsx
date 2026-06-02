@@ -55,7 +55,7 @@ export function InputForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-xs text-purple-300/80">
+      <div className="flex items-center gap-2 text-xs text-purple-700/80 dark:text-purple-300/80">
         <span className="shrink-0">Detail</span>
         <Select
           value={detailLevel}
@@ -64,7 +64,7 @@ export function InputForm({
         >
           <SelectTrigger
             size="sm"
-            className="h-8 w-[120px] border-purple-500/30 bg-neutral-800/50 text-purple-100"
+            className="h-8 w-[120px] border-purple-500/30 bg-background/80 dark:bg-neutral-800/50 text-foreground dark:text-purple-100"
           >
             <SelectValue />
           </SelectTrigger>
@@ -84,7 +84,8 @@ export function InputForm({
             placeholder={placeholderText}
             rows={1}
             className="flex-1 resize-none pr-10 min-h-[40px] rounded-xl border-purple-500/30 
-                       bg-neutral-800/50 text-purple-100 placeholder:text-purple-300/60
+                       bg-background/80 dark:bg-neutral-800/50 text-foreground dark:text-purple-100
+                       placeholder:text-muted-foreground dark:placeholder:text-purple-300/60
                        focus:border-purple-400/50 focus:ring-purple-400/20"
           />
         </div>
@@ -92,15 +93,15 @@ export function InputForm({
           type="submit"
           size="icon"
           disabled={isLoading || !inputValue.trim()}
-          className="w-10 h-10 rounded-full border border-purple-500/30 bg-neutral-800/50 
-                     hover:bg-purple-900/20 hover:border-purple-400/50
+          className="w-10 h-10 rounded-full border border-purple-500/30 bg-background/80 dark:bg-neutral-800/50 
+                     hover:bg-purple-100 dark:hover:bg-purple-900/20 hover:border-purple-400/50
                      disabled:opacity-50 disabled:cursor-not-allowed
                      transition-all duration-200"
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-purple-300" />
+            <Loader2 className="h-4 w-4 animate-spin text-purple-700 dark:text-purple-300" />
           ) : (
-            <Send className="h-4 w-4 text-purple-300" />
+            <Send className="h-4 w-4 text-purple-700 dark:text-purple-300" />
           )}
         </Button>
       </div>

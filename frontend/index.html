@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Knowledge HUB</title>
+    <script>
+      (function () {
+        var stored = localStorage.getItem("knowledge-hub-theme");
+        if (stored === "light") {
+          document.documentElement.classList.remove("dark");
+        } else {
+          document.documentElement.classList.add("dark");
+        }
+
+        var fontScale = localStorage.getItem("knowledge-hub-font-scale");
+        var scale = fontScale ? parseFloat(fontScale) : 1;
+        if (!isFinite(scale)) scale = 1;
+        scale = Math.min(1.5, Math.max(0.75, scale));
+        document.documentElement.style.setProperty("--font-size-scale", String(scale));
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

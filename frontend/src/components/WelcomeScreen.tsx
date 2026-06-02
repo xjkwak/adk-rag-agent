@@ -17,17 +17,17 @@ export function WelcomeScreen({
       
       {/* Main card container with purple border */}
       <div className="w-full max-w-2xl z-10
-                      bg-neutral-900/50 backdrop-blur-md 
+                      bg-card/80 backdrop-blur-md 
                       p-8 rounded-2xl border border-purple-500/30 
-                      shadow-2xl shadow-black/60 
+                      shadow-2xl shadow-black/10 dark:shadow-black/60 
                       transition-all duration-300">
         
         {/* Header section with Knowledge HUB title and star icons */}
         <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-purple-300 flex items-center justify-center gap-3">
+          <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-300 flex items-center justify-center gap-3">
           🧠 Knowledge HUB 1.0 🚀
           </h1>
-          <p className="text-lg text-purple-200 max-w-md mx-auto">
+          <p className="text-lg text-purple-800 dark:text-purple-200 max-w-md mx-auto">
             Turns your questions into comprehensive reports!
           </p>
         </div>
@@ -40,7 +40,7 @@ export function WelcomeScreen({
               <Button
                 variant="outline"
                 onClick={onCancel}
-                className="text-red-400 hover:text-red-300 hover:bg-red-900/20 border-red-700/50"
+                className="text-red-600 hover:text-red-500 hover:bg-red-100 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 border-red-300 dark:border-red-700/50"
               >
                 Cancel
               </Button>
