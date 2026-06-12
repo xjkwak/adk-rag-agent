@@ -12,7 +12,7 @@ from google.adk.cli.fast_api import get_fast_api_app
 # Only subdirs with agent packages (exclude scripts/, assets/)
 _default_agents = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 AGENTS_DIR = os.environ.get("AGENTS_DIR", _default_agents)
-PORT = int(os.environ.get("PORT", "8080"))
+PORT = int(os.environ.get("PORT", os.environ.get("ADK_API_PORT", "8080")))
 _origins = os.environ.get("ALLOW_ORIGINS", "*")
 ALLOW_ORIGINS = [o.strip() for o in _origins.split(",") if o.strip()] or None
 
@@ -23,6 +23,10 @@ app = get_fast_api_app(
     web=False,
     trace_to_cloud=os.environ.get("TRACE_TO_CLOUD", "").lower() in ("1", "true", "yes"),
 )
+
+from knowledge_hub.admin_api import router as hub_config_router
+
+app.include_router(hub_config_router, prefix="/hub/config", tags=["hub-config"])
 
 if __name__ == "__main__":
     uvicorn.run(

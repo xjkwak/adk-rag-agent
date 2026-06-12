@@ -28,7 +28,7 @@ dev:
 	exit 1
 
 dev-backend:
-	uv run adk api_server . --allow_origins="*" --port $(ADK_API_PORT)
+	ADK_API_PORT=$(ADK_API_PORT) PORT=$(ADK_API_PORT) ALLOW_ORIGINS="*" uv run python scripts/run_api_server.py
 
 dev-frontend:
 	npm --prefix frontend run dev

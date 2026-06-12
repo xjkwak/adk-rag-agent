@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { InputForm } from "@/components/InputForm";
 
 interface WelcomeScreenProps {
-  handleSubmit: (query: string) => void;
+  handleSubmit: (query: string, detailLevel?: "low" | "high") => void;
   isLoading: boolean;
   onCancel: () => void;
 }
@@ -28,7 +28,7 @@ export function WelcomeScreen({
           🧠 Knowledge HUB 1.0 🚀
           </h1>
           <p className="text-lg text-purple-800 dark:text-purple-200 max-w-md mx-auto">
-            Turns your questions into comprehensive reports!
+            Peak Rock Engineering Intelligence — technical due diligence on SOPs and code.
           </p>
         </div>
 

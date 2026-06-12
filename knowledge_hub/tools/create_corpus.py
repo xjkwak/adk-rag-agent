@@ -24,7 +24,16 @@ def create_corpus(
     Returns:
         dict: Status information about the operation
     """
-    # Check if corpus already exists
+    corpus_name = (corpus_name or "").strip()
+    if not corpus_name:
+        return {
+            "status": "error",
+            "message": "Corpus name is required",
+            "corpus_name": corpus_name,
+            "corpus_created": False,
+        }
+
+    # Check if corpus already exists (do not resolve empty to default here)
     if check_corpus_exists(corpus_name, tool_context):
         return {
             "status": "info",

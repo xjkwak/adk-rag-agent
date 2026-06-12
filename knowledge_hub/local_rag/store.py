@@ -253,10 +253,32 @@ def _load_bytes_from_uri(uri: str) -> tuple[bytes, str]:
     raise ValueError(f"Unsupported or missing path: {uri}")
 
 
+def indexed_source_basenames(corpus_resource_name: str) -> set[str]:
+    """Basenames of files already indexed in a corpus (for idempotent seeding)."""
+    corpus_id = _corpus_id_from_resource(corpus_resource_name)
+    try:
+        collection = _get_collection(corpus_id)
+        rows = collection.get(include=["metadatas"])
+    except Exception:
+        return set()
+
+    basenames: set[str] = set()
+    for m in rows.get("metadatas") or []:
+        if not m:
+            continue
+        uri = m.get("source_uri") or ""
+        name = m.get("display_name") or Path(uri.split("?")[0]).name
+        if name:
+            basenames.add(name)
+    return basenames
+
+
 def import_paths_dict(
     corpus_resource_name: str,
     paths: list[str],
     tool_context: ToolContext,
+    *,
+    skip_existing: bool = False,
 ) -> dict[str, Any]:
     cfg = _cfg()
     corpus_id = _corpus_id_from_resource(corpus_resource_name)
@@ -272,10 +294,16 @@ def import_paths_dict(
 
     collection = _get_collection(corpus_id)
     added_files = 0
+    skipped = 0
     invalid: list[str] = []
     conversions: list[str] = []
+    existing_names = indexed_source_basenames(corpus_resource_name) if skip_existing else set()
 
     for raw_path in paths:
+        basename = Path(raw_path.split("?")[0]).name
+        if skip_existing and basename and basename in existing_names:
+            skipped += 1
+            continue
         try:
             data, resolved = _load_bytes_from_uri(raw_path)
             text = _bytes_to_text(data, resolved)
@@ -297,6 +325,8 @@ def import_paths_dict(
             ]
             collection.add(ids=ids, documents=chunks, metadatas=metadatas)
             added_files += 1
+            if basename:
+                existing_names.add(basename)
         except Exception as e:
             logger.exception("Ingest failed for %s", raw_path)
             invalid.append(f"{raw_path} ({e})")
@@ -308,14 +338,17 @@ def import_paths_dict(
         tool_context.state["current_corpus"] = entry["display_name"]
 
     msg = f"Added {added_files} file(s) to local corpus '{entry['display_name']}'"
+    if skipped:
+        msg += f"; skipped {skipped} already-indexed file(s)"
     if invalid:
         msg += f"; skipped/failed: {len(invalid)}"
 
     return {
-        "status": "success" if added_files else "error",
+        "status": "success" if added_files or skipped else "error",
         "message": msg,
         "corpus_name": entry["display_name"],
         "files_added": added_files,
+        "files_skipped": skipped,
         "paths": paths,
         "invalid_paths": invalid,
         "conversions": conversions,

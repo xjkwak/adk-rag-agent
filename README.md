@@ -207,7 +207,7 @@ With `USE_LOCAL_RAG=1` in `knowledge_hub/.env`:
 python scripts/seed_aegis_demo.py
 ```
 
-This ingests six files from `assets/`:
+This ingests six files from `assets/aegis/`:
 
 - `Aegis_SOP_IPC_Compliance.md`, `Aegis_Manufacturing_Rules.md`
 - `WorkOrderService.cs`, `LineValidationService.cs`

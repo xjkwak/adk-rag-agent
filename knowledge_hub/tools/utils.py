@@ -12,6 +12,27 @@ from ..config import PROJECT_ID, LOCATION, USE_LOCAL_RAG
 logger = logging.getLogger(__name__)
 
 
+def resolve_corpus_name(corpus_name: str, tool_context: ToolContext) -> str:
+    """
+    Resolve corpus display name for tool calls.
+
+    Empty corpus_name uses session current_corpus, then persisted default_corpus.
+    """
+    name = (corpus_name or "").strip()
+    if name:
+        return name
+
+    current = tool_context.state.get("current_corpus")
+    if current:
+        return str(current).strip()
+
+    from ..settings_store import get_default_corpus
+
+    default = get_default_corpus()
+    tool_context.state["current_corpus"] = default
+    return default
+
+
 def get_corpus_resource_name(corpus_name: str) -> str:
     """
     Convert a corpus name to its full resource name if needed.
@@ -73,6 +94,8 @@ def check_corpus_exists(corpus_name: str, tool_context: ToolContext) -> bool:
     Returns:
         bool: True if the corpus exists, False otherwise
     """
+    corpus_name = resolve_corpus_name(corpus_name, tool_context)
+
     if USE_LOCAL_RAG:
         from ..local_rag import store as local_store
 

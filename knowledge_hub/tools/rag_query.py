@@ -7,7 +7,7 @@ import logging
 from google.adk.tools.tool_context import ToolContext
 
 from ..config import DEFAULT_DISTANCE_THRESHOLD, DEFAULT_TOP_K, USE_LOCAL_RAG
-from .utils import check_corpus_exists, get_corpus_resource_name
+from .utils import check_corpus_exists, get_corpus_resource_name, resolve_corpus_name
 
 
 def rag_query(
@@ -28,6 +28,7 @@ def rag_query(
         dict: The query results and status
     """
     try:
+        corpus_name = resolve_corpus_name(corpus_name, tool_context)
 
         # Check if the corpus exists
         if not check_corpus_exists(corpus_name, tool_context):

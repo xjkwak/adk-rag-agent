@@ -70,11 +70,14 @@ docker compose up --build
 
 Frontend uses `API_UPSTREAM_SCHEME=http` and `API_UPSTREAM_HOST=api:8080`. On Cloud Run, set `API_UPSTREAM_SCHEME=https` (default) and the `*.a.run.app` host.
 
-Seed corpus:
+Seed corpora (after first `docker compose up`):
 
 ```bash
 docker compose run --rm api python scripts/seed_aegis_demo.py
+docker compose run --rm api python scripts/seed_peakrock_demo.py
 ```
+
+Demo assets live under `assets/aegis/` and `assets/PeakRock/` (both are copied into the backend image).
 
 ---
 
@@ -281,9 +284,11 @@ export API_UPSTREAM_HOST=$(echo "$API_URL" | sed -e 's|https://||' -e 's|http://
 echo $API_UPSTREAM_HOST
 ```
 
-### Seed the Aegis demo corpus (one-time per bucket)
+### Seed demo corpora (one-time per bucket, or after asset changes)
 
-Run locally with the same `LOCAL_RAG_DATA_DIR` you use in prod, **or** exec into a Cloud Run job. Easiest: seed locally then sync to GCS, or run once from a machine with ADC:
+Corpora: **`aegis-demo`** (`assets/aegis/`) and **`peakrock-demo`** (`assets/PeakRock/`).
+
+Run locally with the same `LOCAL_RAG_DATA_DIR` you use in prod, **or** use Cloud Run Jobs. Easiest: seed locally then sync to GCS:
 
 **Option A — seed locally, upload to bucket**
 
@@ -291,13 +296,16 @@ Run locally with the same `LOCAL_RAG_DATA_DIR` you use in prod, **or** exec into
 export USE_LOCAL_RAG=1
 export LOCAL_RAG_DATA_DIR=./data/local_rag
 uv run python scripts/seed_aegis_demo.py
-gcloud storage rsync -r ./data/local_rag gs://${RAG_BUCKET}/ --delete-unmatched-destination-objects=false
+uv run python scripts/seed_peakrock_demo.py
+gcloud storage rsync -r ./data/local_rag gs://${RAG_BUCKET}/
 ```
 
-**Option B — Cloud Run Job (same image as API)**
+**Option B — Cloud Run Jobs (same image as API)**
+
+Aegis:
 
 ```bash
-gcloud run jobs create knowledge-hub-seed \
+gcloud run jobs create knowledge-hub-seed-aegis \
   --image=${AR_IMAGE_PREFIX}/${API_SERVICE}:${IMAGE_TAG} \
   --region=$GOOGLE_CLOUD_LOCATION \
   --project=$GOOGLE_CLOUD_PROJECT \
@@ -311,7 +319,30 @@ gcloud run jobs create knowledge-hub-seed \
   --task-timeout=600 \
   2>/dev/null || true
 
-gcloud run jobs execute knowledge-hub-seed \
+gcloud run jobs execute knowledge-hub-seed-aegis \
+  --region=$GOOGLE_CLOUD_LOCATION \
+  --project=$GOOGLE_CLOUD_PROJECT \
+  --wait
+```
+
+PeakRock:
+
+```bash
+gcloud run jobs create knowledge-hub-seed-peakrock \
+  --image=${AR_IMAGE_PREFIX}/${API_SERVICE}:${IMAGE_TAG} \
+  --region=$GOOGLE_CLOUD_LOCATION \
+  --project=$GOOGLE_CLOUD_PROJECT \
+  --service-account=$RUN_SA \
+  --add-volume=name=rag-data,type=cloud-storage,bucket=${RAG_BUCKET} \
+  --add-volume-mount=volume=rag-data,mount-path=${LOCAL_RAG_MOUNT} \
+  --set-env-vars="USE_LOCAL_RAG=1,LOCAL_RAG_DATA_DIR=${LOCAL_RAG_MOUNT}" \
+  --command=python \
+  --args=scripts/seed_peakrock_demo.py \
+  --max-retries=0 \
+  --task-timeout=600 \
+  2>/dev/null || true
+
+gcloud run jobs execute knowledge-hub-seed-peakrock \
   --region=$GOOGLE_CLOUD_LOCATION \
   --project=$GOOGLE_CLOUD_PROJECT \
   --wait
@@ -366,7 +397,7 @@ echo "Open: ${UI_URL}/app/"
 | 5 | [GCS bucket](#4-gcs-bucket-for-chroma-persistence) |
 | 6 | [Build and push images](#build-and-push-docker-images) |
 | 7 | [Deploy backend](#deploy-backend-local-rag--optional-vertex-llm) |
-| 8 | [Seed corpus](#seed-the-aegis-demo-corpus-one-time-per-bucket) |
+| 8 | [Seed corpora](#seed-demo-corpora-one-time-per-bucket-or-after-asset-changes) |
 | 9 | [Deploy frontend](#deploy-frontend) |
 | 10 | [Test deployment](#test-the-deployment) |
 
@@ -479,7 +510,7 @@ gcloud run deploy $API_SERVICE --image=${AR_IMAGE_PREFIX}/${API_SERVICE}:${IMAGE
 ## Production checklist
 
 - [ ] `USE_LOCAL_RAG=1` and `LOCAL_RAG_DATA_DIR` match GCS volume mount
-- [ ] GCS bucket seeded (`aegis-demo` corpus)
+- [ ] GCS bucket seeded (`aegis-demo` and `peakrock-demo` corpora)
 - [ ] `API_UPSTREAM_HOST` on UI service matches current backend host
 - [ ] Backend app name remains `knowledge_hub` (matches [frontend/src/App.tsx](frontend/src/App.tsx))
 - [ ] Vertex API + billing if using `GOOGLE_GENAI_USE_VERTEXAI=True`

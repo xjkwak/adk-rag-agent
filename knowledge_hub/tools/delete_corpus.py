@@ -5,7 +5,7 @@ Tool for deleting a RAG corpus when it's no longer needed.
 from google.adk.tools.tool_context import ToolContext
 
 from ..config import USE_LOCAL_RAG
-from .utils import check_corpus_exists, get_corpus_resource_name
+from .utils import check_corpus_exists, get_corpus_resource_name, resolve_corpus_name
 
 
 def delete_corpus(
@@ -26,6 +26,8 @@ def delete_corpus(
     Returns:
         dict: Status information about the deletion operation
     """
+    corpus_name = resolve_corpus_name(corpus_name, tool_context)
+
     # Check if corpus exists
     if not check_corpus_exists(corpus_name, tool_context):
         return {

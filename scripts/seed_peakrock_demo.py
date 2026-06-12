@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Create or refresh the aegis-demo corpus with the six Aegis PoC assets.
+Create or refresh the peakrock-demo corpus with assets from assets/PeakRock/.
+
+All regular files in that folder are ingested (PDF, C#, SQL, markdown, etc.).
 
 Usage (from repo root, with venv active):
-  USE_LOCAL_RAG=1 python scripts/seed_aegis_demo.py
+  USE_LOCAL_RAG=1 python scripts/seed_peakrock_demo.py
 """
 
 from __future__ import annotations
@@ -12,23 +14,24 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ASSETS = REPO_ROOT / "assets" / "aegis"
+ASSETS = REPO_ROOT / "assets" / "PeakRock"
 
-AEGIS_DEMO_FILES = [
-    "Aegis_SOP_IPC_Compliance.md",
-    "Aegis_Manufacturing_Rules.md",
-    "WorkOrderService.cs",
-    "LineValidationService.cs",
-    "sp_CloseWorkOrder.sql",
-    "sp_ValidateLineClearance.sql",
-]
-
-CORPUS_DISPLAY_NAME = "aegis-demo"
+CORPUS_DISPLAY_NAME = "peakrock-demo"
 
 
 class _ToolContext:
     def __init__(self) -> None:
         self.state: dict = {}
+
+
+def _peakrock_asset_names() -> list[str]:
+    if not ASSETS.is_dir():
+        return []
+    return sorted(
+        p.name
+        for p in ASSETS.iterdir()
+        if p.is_file() and not p.name.startswith(".")
+    )
 
 
 def main() -> int:
@@ -49,14 +52,17 @@ def main() -> int:
 
     from knowledge_hub.local_rag import store as local_store
 
-    ctx = _ToolContext()
-    paths = [str(ASSETS / name) for name in AEGIS_DEMO_FILES]
-    missing = [p for p in paths if not Path(p).is_file()]
-    if missing:
-        print("Missing asset files:", file=sys.stderr)
-        for p in missing:
-            print(f"  {p}", file=sys.stderr)
+    names = _peakrock_asset_names()
+    if not names:
+        print(
+            f"No files found in {ASSETS}. Add PeakRock assets and retry.",
+            file=sys.stderr,
+        )
         return 1
+
+    ctx = _ToolContext()
+    paths = [str(ASSETS / name) for name in names]
+    print(f"Ingesting {len(paths)} file(s) from {ASSETS.relative_to(REPO_ROOT)}/")
 
     registry = local_store._load_registry()
     entry = local_store._find_corpus_entry(registry, display_name=CORPUS_DISPLAY_NAME)

@@ -50,8 +50,8 @@ export function InputForm({
 
   const placeholderText =
     context === "chat"
-      ? "Ask about compliance gaps, line clearance, work orders..."
-      : "Ask the Oracle about SOPs, rules, or production code";
+      ? "Ask about SOP gaps, FinOps, OSS licensing, encryption, or code root causes..."
+      : "Ask the Engineering Intelligence Oracle about governance SOPs or production code";
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
