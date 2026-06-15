@@ -195,6 +195,29 @@ docker compose run --rm api python scripts/seed_aegis_demo.py
 
 Stop: `docker compose down`. Full GCP deploy: [DEPLOY.md](DEPLOY.md).
 
+### Deploy to GCP (one command)
+
+Prerequisites: [gcloud CLI](https://cloud.google.com/sdk/docs/install), [Docker](https://docs.docker.com/get-docker/), and `knowledge_hub/.env` configured (`GOOGLE_CLOUD_PROJECT`, etc.).
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+
+# Full deploy: GCP setup + build images + Cloud Run (API + UI)
+make deploy-gcp
+
+# First deploy: also seed demo + support KB corpora into GCS
+make deploy-gcp-seed
+
+# Resume after a failed deploy (images already pushed)
+make deploy-gcp-fast-seed
+```
+
+Equivalent: `./scripts/deploy-gcp.sh` or `./scripts/deploy-gcp.sh --seed`.
+
+Resume without rebuilding: `make deploy-gcp-fast` or `./scripts/deploy-gcp.sh --skip-setup --skip-build`.  
+Step-by-step reference and troubleshooting: [DEPLOY.md](DEPLOY.md).
+
 ## Aegis Manufacturing Oracle (demo)
 
 The Knowledge Hub agent is configured as the **Aegis Manufacturing Oracle**: it compares Manufacturing SOPs and rules to production C# and SQL using a single corpus, **`aegis-demo`**.

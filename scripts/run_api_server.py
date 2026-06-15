@@ -4,6 +4,14 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load env before support_intake / knowledge_hub config modules read os.environ
+_repo_root = Path(__file__).resolve().parent.parent
+load_dotenv(_repo_root / "knowledge_hub" / ".env")
+load_dotenv(_repo_root / ".env")
 
 import uvicorn
 from google.adk.cli.fast_api import get_fast_api_app
@@ -25,8 +33,10 @@ app = get_fast_api_app(
 )
 
 from knowledge_hub.admin_api import router as hub_config_router
+from support_intake.api import router as intake_router
 
 app.include_router(hub_config_router, prefix="/hub/config", tags=["hub-config"])
+app.include_router(intake_router, prefix="/hub/intake", tags=["support-intake"])
 
 if __name__ == "__main__":
     uvicorn.run(

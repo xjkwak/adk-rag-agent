@@ -2,6 +2,17 @@
 
 Docker-first deployment: build two images (backend + frontend), push to **Artifact Registry**, deploy both to **Cloud Run**.
 
+**Quick start (one command):**
+
+```bash
+gcloud auth login && gcloud auth application-default login
+make deploy-gcp          # or: ./scripts/deploy-gcp.sh
+make deploy-gcp-seed     # first deploy + seed corpora to GCS
+make deploy-gcp-fast-seed  # resume: skip setup/build, deploy + seed
+```
+
+The script [`scripts/deploy-gcp.sh`](scripts/deploy-gcp.sh) reads `knowledge_hub/.env` (project, Jira, Support Intake vars) and runs setup → build → push → deploy. Flags: `--skip-setup`, `--skip-build`, `--seed` (`./scripts/deploy-gcp.sh --help`). **Note:** `make` does not forward flags — use `deploy-gcp-fast` / `deploy-gcp-fast-seed` or call the script directly.
+
 **RAG mode for this guide:** `USE_LOCAL_RAG=1` — Chroma on disk (no Vertex RAG Engine). The LLM can still use **Gemini via Vertex** when `GOOGLE_GENAI_USE_VERTEXAI=True`.
 
 For local development and Vertex RAG troubleshooting, see [README.md](README.md).

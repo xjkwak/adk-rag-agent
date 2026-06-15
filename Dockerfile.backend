@@ -11,13 +11,20 @@ WORKDIR /app
 # System deps for chromadb / onnx runtime (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv/uvx for mcp-atlassian Jira MCP subprocess
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && ln -sf /root/.local/bin/uv /usr/local/bin/uv \
+    && ln -sf /root/.local/bin/uvx /usr/local/bin/uvx
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Agent package and seed assets (for optional startup seed)
 COPY knowledge_hub ./knowledge_hub
+COPY support_intake ./support_intake
 COPY scripts ./scripts
 COPY assets ./assets
 

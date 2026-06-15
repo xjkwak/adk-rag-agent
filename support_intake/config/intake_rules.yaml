@@ -1,0 +1,119 @@
+request_types:
+  faq:
+    label: Known question or FAQ
+    required_fields: []
+    optional_fields: [system, summary]
+    always_create_ticket: false
+    auto_answer_allowed: true
+    follow_up_questions: {}
+
+  known_issue:
+    label: Known issue with existing solution
+    required_fields: [system, actual_behavior]
+    optional_fields: [environment, error_message, steps_to_reproduce]
+    always_create_ticket: false
+    auto_answer_allowed: true
+    follow_up_questions:
+      system: "Which product or system is affected?"
+      actual_behavior: "What is happening when you encounter this issue?"
+      environment: "Which environment is affected (Production, Staging, Dev)?"
+      error_message: "What error message do you see, if any?"
+      steps_to_reproduce: "What steps reproduce the problem?"
+
+  technical_incident:
+    label: New incident or technical problem
+    required_fields: [system, environment, actual_behavior, business_impact]
+    optional_fields: [error_message, steps_to_reproduce, affected_users, workaround, expected_behavior]
+    always_create_ticket: false
+    auto_answer_allowed: false
+    follow_up_questions:
+      system: "Which product or system is affected?"
+      environment: "Which environment is affected (Production, Staging, Dev)?"
+      actual_behavior: "What is actually happening?"
+      expected_behavior: "What did you expect to happen?"
+      error_message: "What error message do you see?"
+      steps_to_reproduce: "What steps reproduce the problem?"
+      affected_users: "Does this affect one user or multiple users?"
+      workaround: "Is there a workaround available?"
+      business_impact: "What is the business impact of this issue?"
+
+  feature_request:
+    label: Feature request
+    required_fields: [system, desired_outcome, current_process, business_value]
+    optional_fields: [target_date, affected_users]
+    always_create_ticket: true
+    auto_answer_allowed: false
+    follow_up_questions:
+      system: "Which product or system does this relate to?"
+      desired_outcome: "What outcome are you trying to achieve?"
+      current_process: "How does the current process work?"
+      business_value: "Who would benefit from this change and why?"
+      target_date: "Is there a target date or deadline?"
+      affected_users: "How many users would benefit?"
+
+  access_request:
+    label: Access or permissions request
+    required_fields: [system, required_role, request_reason]
+    optional_fields: [approver]
+    always_create_ticket: true
+    auto_answer_allowed: false
+    follow_up_questions:
+      system: "Which system do you need access to?"
+      required_role: "Which role or permission level is required?"
+      request_reason: "Is this a new access request or a permissions issue?"
+      approver: "Who should approve this request?"
+
+  unclear:
+    label: Unclear request requiring more information
+    required_fields: [summary]
+    optional_fields: [system]
+    always_create_ticket: false
+    auto_answer_allowed: false
+    follow_up_questions:
+      summary: "Could you describe the problem or request in more detail?"
+      system: "Which product or system does this relate to?"
+
+  unsupported:
+    label: Unsupported request requiring human assistance
+    required_fields: [summary]
+    optional_fields: [system, business_impact]
+    always_create_ticket: true
+    auto_answer_allowed: false
+    follow_up_questions:
+      summary: "Please describe what you need help with."
+      system: "Which product or system is involved?"
+      business_impact: "What is the business impact?"
+
+global:
+  max_follow_up_questions: 3
+  knowledge_confidence_threshold: 0.72
+  knowledge_min_results: 1
+  batch_fields_intro: >
+    I couldn't find a complete answer in our Knowledge Hub.
+    To create a support ticket, please provide the following:
+  batch_fields_footer: >
+    You can reply in a single message with all of the information above.
+  opening_message: >
+    Hello! I'm the Support Intake Assistant. Describe your issue or question
+    in text or audio, and I'll search our Knowledge Hub for a solution or help
+    you create a complete support ticket. How can I help you today?
+
+jira:
+  project_key_env: JIRA_PROJECT_KEY
+  defaults:
+    faq:
+      issue_type: Task
+    known_issue:
+      issue_type: Bug
+    technical_incident:
+      issue_type: Bug
+    feature_request:
+      issue_type: Story
+    access_request:
+      issue_type: Task
+    unclear:
+      issue_type: Task
+    unsupported:
+      issue_type: Task
+  labels:
+    - support-intake

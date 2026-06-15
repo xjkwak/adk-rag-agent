@@ -26,6 +26,7 @@ services:
       PORT: "8080"
       LOCAL_RAG_DATA_DIR: /data/local_rag
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/adc.json
+      UVX_COMMAND: uvx
     volumes:
       - ./local_rag_data:/data/local_rag
       - ${GCLOUD_ADC_FILE:-${HOME}/.config/gcloud/application_default_credentials.json}:/tmp/adc.json:ro

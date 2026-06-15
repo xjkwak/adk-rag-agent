@@ -36,6 +36,19 @@ dev-frontend:
 playground:
 	uv run adk web --port 8501
 
+# One-shot GCP deploy (see DEPLOY.md and scripts/deploy-gcp.sh)
+deploy-gcp:
+	./scripts/deploy-gcp.sh
+
+deploy-gcp-seed:
+	./scripts/deploy-gcp.sh --seed
+
+deploy-gcp-fast:
+	./scripts/deploy-gcp.sh --skip-setup --skip-build
+
+deploy-gcp-fast-seed:
+	./scripts/deploy-gcp.sh --skip-setup --skip-build --seed
+
 lint:
 	uv run codespell
 	uv run ruff check . --diff
