@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from . import settings_store
 from .config import USE_LOCAL_RAG
-from .peakrock_instruction import PEAKROCK_INSTRUCTION
+from .amtech_instruction import AMTECH_INSTRUCTION
 from .tools.get_corpus_info import get_corpus_info
 from .tools.utils import check_corpus_exists
 
@@ -90,8 +90,10 @@ def get_agent_config() -> AgentConfigResponse:
     return AgentConfigResponse(
         model=settings["model"],
         instruction=settings["instruction"],
-        default_instruction=PEAKROCK_INSTRUCTION.strip(),
-        available_models=settings_store.AVAILABLE_GEMINI_MODELS,
+        default_instruction=AMTECH_INSTRUCTION.strip(),
+        available_models=settings_store.get_available_gemini_models(
+            include=settings["model"]
+        ),
         default_corpus=settings["default_corpus"],
     )
 

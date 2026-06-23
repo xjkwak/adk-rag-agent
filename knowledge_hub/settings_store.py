@@ -12,19 +12,12 @@ _ACTIVE_CORPUS_START = "<!-- ACTIVE_CORPUS_START -->"
 _ACTIVE_CORPUS_END = "<!-- ACTIVE_CORPUS_END -->"
 
 from .peakrock_instruction import PEAKROCK_INSTRUCTION
+from .vertex_models import STATIC_VERTEX_GEMINI_MODELS, get_available_gemini_models
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 
-AVAILABLE_GEMINI_MODELS: list[str] = [
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-pro",
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-8b",
-]
+# Backward-compatible alias; prefer get_available_gemini_models() for the UI.
+AVAILABLE_GEMINI_MODELS: list[str] = STATIC_VERTEX_GEMINI_MODELS
 
 DEFAULT_CORPUS = os.environ.get("KNOWLEDGE_HUB_DEFAULT_CORPUS", "peakrock-demo")
 
@@ -94,7 +87,8 @@ def load_settings() -> dict[str, Any]:
         return defaults
 
     model = raw.get("model", defaults["model"])
-    if model not in AVAILABLE_GEMINI_MODELS:
+    allowed = get_available_gemini_models(include=str(model))
+    if model not in allowed:
         model = defaults["model"]
 
     instruction = raw.get("instruction", defaults["instruction"])
@@ -122,7 +116,8 @@ def save_settings(
     """Merge and persist settings; returns the saved document."""
     current = load_settings()
     if model is not None:
-        if model not in AVAILABLE_GEMINI_MODELS:
+        allowed = get_available_gemini_models(include=model)
+        if model not in allowed:
             raise ValueError(f"Unsupported model: {model}")
         current["model"] = model
     if instruction is not None:

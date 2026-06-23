@@ -12,6 +12,7 @@ from typing import Any
 
 from ..config import get_jira_settings
 from ..config_loader import get_jira_config
+from ..orchestrator.field_heuristics import build_ticket_title_heuristic
 from ..orchestrator.state import TicketPreview
 
 logger = logging.getLogger(__name__)
@@ -308,6 +309,46 @@ async def _create_via_rest(
         }
 
 
+async def _fetch_issue_description(
+    settings: dict[str, str | bool], issue_key: str
+) -> str:
+    """Fetch plain-text description for appending demo intake updates."""
+    import httpx
+
+    jira_url = str(settings["url"])
+    jira_username = str(settings["username"])
+    jira_token = str(settings["api_token"])
+    base = _jira_base_url(jira_url)
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(
+            f"{base}/rest/api/3/issue/{issue_key}",
+            params={"fields": "description"},
+            auth=(jira_username, jira_token),
+            headers={"Accept": "application/json"},
+        )
+        if resp.status_code >= 400:
+            return ""
+        data = resp.json()
+        desc = data.get("fields", {}).get("description")
+        if isinstance(desc, str):
+            return desc
+        if isinstance(desc, dict):
+            # ADF -> rough plain text for append
+            parts: list[str] = []
+
+            def walk(node: Any) -> None:
+                if isinstance(node, dict):
+                    if node.get("type") == "text" and node.get("text"):
+                        parts.append(str(node["text"]))
+                    for child in node.get("content", []):
+                        walk(child)
+
+            walk(desc)
+            return "\n".join(parts).strip()
+    return ""
+
+
 async def _update_via_rest(
     preview: TicketPreview, settings: dict[str, str | bool], issue_key: str
 ) -> dict[str, Any]:
@@ -318,6 +359,13 @@ async def _update_via_rest(
     jira_token = str(settings["api_token"])
     base = _jira_base_url(jira_url)
 
+    existing = await _fetch_issue_description(settings, issue_key)
+    stamp = preview.description.strip()
+    if existing:
+        combined = f"{existing.rstrip()}\n\n---\n\n**Support Intake update**\n{stamp}"
+    else:
+        combined = stamp
+
     fields: dict[str, Any] = {
         "summary": preview.summary,
         "description": {
@@ -326,7 +374,7 @@ async def _update_via_rest(
             "content": [
                 {
                     "type": "paragraph",
-                    "content": [{"type": "text", "text": preview.description[:32000]}],
+                    "content": [{"type": "text", "text": combined[:32000]}],
                 }
             ],
         },
@@ -366,14 +414,19 @@ async def submit_jira_ticket(preview: TicketPreview) -> dict[str, Any]:
     await _verify_jira_connection(settings)
     if fixed_key:
         await _verify_issue_access(settings, fixed_key)
+        logger.info("Demo mode: updating fixed Jira issue %s", fixed_key)
 
     async with _mcp_lock:
         if fixed_key:
             try:
-                return await _update_via_mcp(preview, settings, fixed_key)
+                result = await _update_via_mcp(preview, settings, fixed_key)
+                result.setdefault("key", fixed_key)
+                return result
             except Exception as exc:
                 logger.warning("MCP Jira update failed (%s), trying REST fallback", exc)
-                return await _update_via_rest(preview, settings, fixed_key)
+                result = await _update_via_rest(preview, settings, fixed_key)
+                result.setdefault("key", fixed_key)
+                return result
         try:
             return await _create_via_mcp(preview, settings)
         except Exception as exc:
@@ -396,15 +449,13 @@ def build_ticket_preview(
     description: str,
     summary: str | None = None,
 ) -> TicketPreview:
-    from ..orchestrator.nlu import generate_ticket_summary
-
     jira_cfg = get_jira_config()
     defaults = jira_cfg.get("defaults", {}).get(request_type, {})
     issue_type = defaults.get("issue_type", "Task")
     labels = list(jira_cfg.get("labels", ["support-intake"]))
     labels.append(request_type.replace("_", "-"))
 
-    title = summary or generate_ticket_summary(collected_fields, request_type)
+    title = summary or build_ticket_title_heuristic(collected_fields, request_type)
     return TicketPreview(
         summary=title,
         description=description,
@@ -423,7 +474,8 @@ def build_ticket_preview(
 
 def extract_issue_key(result: dict[str, Any]) -> tuple[str, str]:
     settings = get_jira_settings()
-    key = result.get("key") or result.get("issue_key") or ""
+    fixed_key = str(settings.get("fixed_issue_key", "")).strip()
+    key = result.get("key") or result.get("issue_key") or fixed_key or ""
     url = result.get("url") or result.get("browse_url") or ""
     if not url and key:
         url = f"{_jira_base_url(str(settings['url']))}/browse/{key}"

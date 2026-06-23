@@ -16,7 +16,7 @@ _agent_settings = get_agent_settings()
 root_agent = Agent(
     name="RagAgent",
     model=_agent_settings["model"],
-    description="Peak Rock Engineering Intelligence Oracle — governance SOPs and production code",
+    description="Peak Rock Engineering Intelligence Oracle — technical due diligence over governance SOPs and production code",
     planner=BuiltInPlanner(
         thinking_config=genai_types.ThinkingConfig(include_thoughts=False)
     ),

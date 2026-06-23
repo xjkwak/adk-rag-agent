@@ -6,34 +6,19 @@ import json
 import logging
 from typing import Any
 
-from google import genai
 from google.genai import types
 
-from ..config import (
-    GOOGLE_CLOUD_LOCATION,
-    GOOGLE_CLOUD_PROJECT,
-    GOOGLE_GENAI_USE_VERTEXAI,
-    NLU_MODEL,
-)
+from ..adapters.knowledge_hub import get_intake_search_corpus
 from ..config_loader import get_request_types
+from ..genai_utils import generate_content
+from .field_heuristics import (
+    build_ticket_description_heuristic,
+    build_ticket_title_heuristic,
+    classify_request_heuristic,
+    extract_coderoad_fields_heuristic,
+)
 
 logger = logging.getLogger(__name__)
-
-_client: genai.Client | None = None
-
-
-def _get_client() -> genai.Client:
-    global _client
-    if _client is None:
-        if GOOGLE_GENAI_USE_VERTEXAI:
-            _client = genai.Client(
-                vertexai=True,
-                project=GOOGLE_CLOUD_PROJECT,
-                location=GOOGLE_CLOUD_LOCATION,
-            )
-        else:
-            _client = genai.Client()
-    return _client
 
 
 def _messages_text(messages: list[dict[str, str]]) -> str:
@@ -60,6 +45,11 @@ def _parse_json_response(text: str) -> dict[str, Any]:
 
 
 def classify_request(messages: list[dict[str, str]]) -> str:
+    heuristic = classify_request_heuristic(messages)
+    if heuristic:
+        logger.info("Classified request via heuristics as %s", heuristic)
+        return heuristic
+
     types_cfg = get_request_types()
     allowed = list(types_cfg.keys())
     labels = {k: v.get("label", k) for k, v in types_cfg.items()}
@@ -73,16 +63,14 @@ Conversation:
 
 Respond with JSON only: {{"request_type": "<key>"}}
 """
-    client = _get_client()
-    response = client.models.generate_content(
-        model=NLU_MODEL,
+    response_text = generate_content(
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0.1,
         ),
     )
-    result = _parse_json_response(response.text or "{}")
+    result = _parse_json_response(response_text or "{}")
     request_type = result.get("request_type", "unclear")
     if request_type not in allowed:
         return "unclear"
@@ -98,10 +86,42 @@ def extract_fields(
     if not field_names:
         return {}
 
+    merged = dict(existing)
+    heuristic = extract_coderoad_fields_heuristic(messages, merged, field_names)
+    for key, value in heuristic.items():
+        if value is not None:
+            merged[key] = value
+
+    missing_for_llm = [
+        name
+        for name in field_names
+        if merged.get(name) is None or merged.get(name) == ""
+    ]
+    if not missing_for_llm:
+        return {
+            name: merged[name]
+            for name in field_names
+            if name in merged and merged[name] not in (None, "")
+        }
+
+    if get_intake_search_corpus() == "amtech-demo":
+        coderoad_core = {"module", "identifier", "description", "environment"}
+        if merged.get("module") and merged.get("description"):
+            if set(missing_for_llm) <= coderoad_core:
+                logger.info(
+                    "Skipping LLM field extraction; missing %s will be collected via prompts",
+                    missing_for_llm,
+                )
+                return {
+                    name: merged[name]
+                    for name in field_names
+                    if name in merged and merged[name] not in (None, "")
+                }
+
     prompt = f"""Extract structured support intake fields from the conversation.
 Request type: {request_type}
-Fields to extract: {field_names}
-Already collected (do not overwrite unless user corrected): {json.dumps(existing)}
+Fields to extract: {missing_for_llm}
+Already collected (do not overwrite unless user corrected): {json.dumps(merged)}
 
 Rules:
 - Only extract values explicitly stated or clearly implied.
@@ -113,19 +133,17 @@ Conversation:
 
 Respond with JSON only: a flat object with field names as keys.
 """
-    client = _get_client()
-    response = client.models.generate_content(
-        model=NLU_MODEL,
+    response_text = generate_content(
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             temperature=0.1,
         ),
     )
-    result = _parse_json_response(response.text or "{}")
+    result = _parse_json_response(response_text or "{}")
     extracted: dict[str, Any] = {}
     for name in field_names:
-        val = result.get(name)
+        val = merged.get(name) or result.get(name)
         if val is not None and val != "" and val != "null":
             extracted[name] = val
     return extracted
@@ -137,6 +155,12 @@ def generate_conversation_summary(
     messages: list[dict[str, str]],
     kb_results: list[dict[str, Any]] | None = None,
 ) -> str:
+    heuristic = build_ticket_description_heuristic(
+        collected_fields, request_type, messages
+    )
+    if collected_fields.get("module") or collected_fields.get("description"):
+        return heuristic
+
     kb_section = ""
     if kb_results:
         kb_section = f"\nKnowledge Hub results consulted:\n{json.dumps(kb_results[:3], indent=2)}"
@@ -155,31 +179,28 @@ Recent conversation:
 
 Return Markdown text only (no JSON wrapper).
 """
-    client = _get_client()
-    response = client.models.generate_content(
-        model=NLU_MODEL,
+    return generate_content(
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.2),
     )
-    return (response.text or "").strip()
 
 
 def generate_ticket_summary(collected_fields: dict[str, Any], request_type: str) -> str:
-    """Generate a short ticket title."""
+    heuristic = build_ticket_title_heuristic(collected_fields, request_type)
+    if collected_fields.get("module") or collected_fields.get("description"):
+        return heuristic
+
     prompt = f"""Create a concise Jira issue summary (max 80 chars) for this support request.
 Request type: {request_type}
 Fields: {json.dumps(collected_fields)}
 
 Return plain text only, no quotes.
 """
-    client = _get_client()
-    response = client.models.generate_content(
-        model=NLU_MODEL,
+    text = generate_content(
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.1),
     )
-    text = (response.text or "Support request").strip().strip('"')
-    return text[:80]
+    return (text or heuristic).strip().strip('"')[:80]
 
 
 def detect_solution_feedback(user_message: str) -> bool | None:

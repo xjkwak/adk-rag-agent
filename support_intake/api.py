@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from .genai_utils import IntakeServiceError
 from .adapters.speech import ALLOWED_MIME_TYPES, transcribe_audio
 from .orchestrator.machine import (
     OrchestratorResponse,
@@ -93,6 +94,23 @@ async def post_message(body: MessageRequest) -> MessageResponse:
         resp = await process_message(state, body.message.strip())
         session_store.save(resp.state)
         return _response_from_orchestrator(resp)
+    except IntakeServiceError as exc:
+        logger.warning("Intake AI service error: %s", exc)
+        msg = exc.user_message
+        state.add_message("assistant", msg)
+        session_store.save(state)
+        return MessageResponse(
+            assistant_message=msg,
+            state=state.to_dict(),
+            ui_hints={
+                "showTicketPreview": False,
+                "showKbArticles": False,
+                "awaitingConfirmation": False,
+                "awaitingSolutionConfirmation": False,
+                "showJiraCreated": False,
+                "isComplete": False,
+            },
+        )
     except Exception as exc:
         logger.exception("Error processing intake message")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -117,6 +135,16 @@ async def post_confirm_ticket(body: ConfirmTicketRequest) -> MessageResponse:
         resp = await confirm_ticket(state)
         session_store.save(resp.state)
         return _response_from_orchestrator(resp)
+    except IntakeServiceError as exc:
+        logger.warning("Intake AI service error on ticket confirm: %s", exc)
+        msg = exc.user_message
+        state.add_message("assistant", msg)
+        session_store.save(state)
+        return MessageResponse(
+            assistant_message=msg,
+            state=state.to_dict(),
+            ui_hints={"awaitingConfirmation": True},
+        )
     except Exception as exc:
         logger.exception("Error confirming ticket")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -290,14 +290,24 @@ seed_corpora() {
   if command -v uv >/dev/null 2>&1; then
     (cd "$REPO_ROOT" && uv run python scripts/seed_aegis_demo.py)
     (cd "$REPO_ROOT" && uv run python scripts/seed_peakrock_demo.py)
+    (cd "$REPO_ROOT" && uv run python scripts/seed_amtech_demo.py)
     (cd "$REPO_ROOT" && uv run python scripts/seed_support_kb.py)
   else
     (cd "$REPO_ROOT" && python3 scripts/seed_aegis_demo.py)
     (cd "$REPO_ROOT" && python3 scripts/seed_peakrock_demo.py)
+    (cd "$REPO_ROOT" && python3 scripts/seed_amtech_demo.py)
     (cd "$REPO_ROOT" && python3 scripts/seed_support_kb.py)
   fi
 
-  gcloud storage rsync -r "$seed_dir" "gs://${RAG_BUCKET}/"
+  # knowledge_hub/__init__.py loads .env with override=True; sync the dir seeds actually used.
+  local actual_dir
+  if command -v uv >/dev/null 2>&1; then
+    actual_dir="$(cd "$REPO_ROOT" && USE_LOCAL_RAG=1 uv run python -c "from knowledge_hub.config import LOCAL_RAG_DATA_DIR; print(LOCAL_RAG_DATA_DIR)")"
+  else
+    actual_dir="$(cd "$REPO_ROOT" && USE_LOCAL_RAG=1 python3 -c "from knowledge_hub.config import LOCAL_RAG_DATA_DIR; print(LOCAL_RAG_DATA_DIR)")"
+  fi
+  log "Syncing RAG data from ${actual_dir}"
+  gcloud storage rsync -r "$actual_dir" "gs://${RAG_BUCKET}/"
 }
 
 main() {

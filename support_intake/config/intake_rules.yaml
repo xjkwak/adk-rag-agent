@@ -89,8 +89,8 @@ global:
   knowledge_confidence_threshold: 0.72
   knowledge_min_results: 1
   batch_fields_intro: >
-    I couldn't find a complete answer in our Knowledge Hub.
-    To create a support ticket, please provide the following:
+    I couldn't find a self-service answer in our knowledge base yet.
+    To open your support ticket, please provide the following:
   batch_fields_footer: >
     You can reply in a single message with all of the information above.
   opening_message: >

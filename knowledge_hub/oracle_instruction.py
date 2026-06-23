@@ -1,5 +1,5 @@
-"""Default agent instruction (Peak Rock). Aegis variant: aegis_instruction.AEGIS_INSTRUCTION."""
+"""Default agent instruction (Amtech). Other variants: peakrock_instruction, aegis_instruction."""
 
-from .peakrock_instruction import PEAKROCK_INSTRUCTION
+from .amtech_instruction import AMTECH_INSTRUCTION
 
-ORACLE_INSTRUCTION = PEAKROCK_INSTRUCTION
+ORACLE_INSTRUCTION = AMTECH_INSTRUCTION

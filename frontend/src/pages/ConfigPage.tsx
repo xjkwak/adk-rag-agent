@@ -443,6 +443,10 @@ export default function ConfigPage() {
 
         <section className="space-y-4 rounded-xl border border-border bg-card/50 p-6">
           <h2 className="text-lg font-semibold">Agent model</h2>
+          <p className="text-sm text-muted-foreground">
+            Used by Chat and Support Intake. Lighter models (e.g. gemini-2.0-flash-lite)
+            reduce quota usage during demos.
+          </p>
           <div className="space-y-1 max-w-md">
             <label className="text-xs text-muted-foreground">Gemini model</label>
             <Select value={model} onValueChange={setModel}>

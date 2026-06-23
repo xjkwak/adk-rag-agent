@@ -282,7 +282,7 @@ export default function IntakePage() {
         <div className="max-w-3xl mx-auto">
           <IntakeInputForm
             onSubmit={(m) => void handleSend(m)}
-            isLoading={isLoading || !!uiHints?.isComplete}
+            isLoading={isLoading}
           />
         </div>
       </div>
