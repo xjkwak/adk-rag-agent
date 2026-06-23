@@ -13,6 +13,12 @@ from pydantic import BaseModel, Field
 from . import settings_store
 from .config import USE_LOCAL_RAG
 from .amtech_instruction import AMTECH_INSTRUCTION
+from .openai_models import get_available_openai_models
+from .provider_utils import (
+    get_available_providers,
+    is_provider_available,
+    resolve_openai_key,
+)
 from .tools.get_corpus_info import get_corpus_info
 from .tools.utils import check_corpus_exists
 
@@ -26,18 +32,30 @@ class _AdminToolContext:
         self.state: dict[str, Any] = {}
 
 
+class ProviderInfo(BaseModel):
+    id: str
+    label: str
+
+
 class AgentConfigResponse(BaseModel):
-    model: str
-    instruction: str
+    model:               str
+    instruction:         str
     default_instruction: str
-    available_models: list[str]
-    default_corpus: str
+    available_models:    list[str]
+    default_corpus:      str
+    provider:            str
+    available_providers: list[ProviderInfo]
+    openai_api_key_set:  bool
+    openai_api_key_hint: str
+    openai_models:       list[str]
 
 
 class AgentConfigUpdate(BaseModel):
-    model: str | None = None
-    instruction: str | None = None
+    model:          str | None = None
+    instruction:    str | None = None
     default_corpus: str | None = None
+    provider:       str | None = None
+    openai_api_key: str | None = None
 
 
 class CorpusListResponse(BaseModel):
@@ -73,41 +91,101 @@ class CorpusMutationResponse(BaseModel):
 
 
 def _apply_agent_runtime() -> None:
-    """Reload live agent model/instruction from persisted settings."""
+    """Reload live agent model/instruction/provider from persisted settings."""
     try:
         from . import agent as agent_module
 
-        runtime = settings_store.get_agent_settings()
-        agent_module.root_agent.model = runtime["model"]
+        runtime  = settings_store.get_agent_settings()
+        provider = runtime.get("provider", "gemini")
+        adk_model = agent_module._build_adk_model(provider, runtime["model"])
+        agent_module.root_agent.model       = adk_model
         agent_module.root_agent.instruction = runtime["instruction"]
+
+        # BuiltInPlanner is Gemini-specific; disable for other providers.
+        if provider != "gemini":
+            agent_module.root_agent.planner = None
+        else:
+            from google.adk.planners import BuiltInPlanner
+            from google.genai import types as genai_types
+
+            agent_module.root_agent.planner = BuiltInPlanner(
+                thinking_config=genai_types.ThinkingConfig(
+                    include_thoughts=False
+                )
+            )
     except Exception as e:
         logger.warning("Could not patch live agent: %s", e)
 
 
-@router.get("/agent", response_model=AgentConfigResponse)
-def get_agent_config() -> AgentConfigResponse:
-    settings = settings_store.load_settings()
+def _mask_key(key: str) -> str:
+    """Return a safe display hint for an API key (last 4 chars)."""
+    return f"...{key[-4:]}" if len(key) >= 4 else "...****"
+
+
+def _build_agent_config_response(
+    settings: dict,
+) -> AgentConfigResponse:
+    """Construct the full AgentConfigResponse from loaded settings."""
+    raw_key = settings.get("openai_api_key", "").strip()
+    env_key = resolve_openai_key()
+    active_key = raw_key or (env_key or "")
+
+    providers = [ProviderInfo(**p) for p in get_available_providers()]
     return AgentConfigResponse(
         model=settings["model"],
         instruction=settings["instruction"],
         default_instruction=AMTECH_INSTRUCTION.strip(),
         available_models=settings_store.get_available_gemini_models(
             include=settings["model"]
+            if settings.get("provider", "gemini") == "gemini"
+            else None
         ),
         default_corpus=settings["default_corpus"],
+        provider=settings.get("provider", "gemini"),
+        available_providers=providers,
+        openai_api_key_set=bool(active_key),
+        openai_api_key_hint=_mask_key(active_key) if active_key else "",
+        openai_models=get_available_openai_models(),
     )
+
+
+@router.get("/agent", response_model=AgentConfigResponse)
+def get_agent_config() -> AgentConfigResponse:
+    settings = settings_store.load_settings()
+    return _build_agent_config_response(settings)
 
 
 @router.put("/agent", response_model=AgentConfigResponse)
 def update_agent_config(body: AgentConfigUpdate) -> AgentConfigResponse:
-    if body.model is None and body.instruction is None and body.default_corpus is None:
+    nothing = (
+        body.model is None
+        and body.instruction is None
+        and body.default_corpus is None
+        and body.provider is None
+        and body.openai_api_key is None
+    )
+    if nothing:
         raise HTTPException(status_code=400, detail="No fields to update")
 
+    # When switching to OpenAI, verify a key will be available.
+    if body.provider == "openai":
+        incoming_key = (body.openai_api_key or "").strip()
+        if not incoming_key and not is_provider_available("openai"):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "An OpenAI API key is required to switch to the OpenAI "
+                    "provider. Enter your key in the API key field."
+                ),
+            )
+
     try:
-        saved = settings_store.save_settings(
+        settings_store.save_settings(
             model=body.model,
             instruction=body.instruction,
             default_corpus=body.default_corpus,
+            provider=body.provider,
+            openai_api_key=body.openai_api_key,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

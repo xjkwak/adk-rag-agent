@@ -129,18 +129,11 @@ Before running the agent, you need to set up authentication with Google Cloud:
    GOOGLE_GENAI_USE_VERTEXAI=True
    ```
    
-   **Optional**: If you want to use alternative model providers or LiteLLM for model routing, uncomment and configure:
+   **Optional — OpenAI provider**: Set the API key as an env-var fallback (the Config UI key takes priority):
    ```bash
-   # OpenAI API Key (if using OpenAI models)
-   # OPENAI_API_KEY=your-openai-api-key-here
-   
-   # Anthropic API Key (if using Claude models)
-   # ANTHROPIC_API_KEY=your-anthropic-api-key-here
-   
-   # LiteLLM Configuration
-   # LITELLM_MODEL_LIST_PATH=/path/to/model_list.json
-   # LITELLM_MASTER_KEY=your-litellm-master-key-here
+   # OPENAI_API_KEY=sk-...
    ```
+   You can also enter the key directly in the Configuration page UI instead.
 
 4. **Local RAG (optional, ChromaDB — no Vertex RAG Engine)**  
    Set in `knowledge_hub/.env`:
@@ -262,7 +255,32 @@ For broader regression and role-based testing, use [`test/Test-Questions.md`](te
 ### Deferred (not in this PoC)
 
 - Obsidian vault sync
-- User-selectable OpenAI vs Gemini API keys (agent uses **Gemini 2.5 Flash** via Vertex)
+
+## Multi-model provider
+
+The **Configuration** page lets you switch the LLM provider used by both Chat and Support Intake without restarting the server.
+
+| Provider | Supported models | Key required |
+|----------|-----------------|--------------|
+| **Gemini** (default) | `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, … | Google Cloud credentials (ADC) |
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, `gpt-4.1-mini` | OpenAI API key |
+
+### Setting the provider
+
+1. Open the **Configuration** page (`/config`).
+2. Under **AI provider & model**, select **Gemini** or **OpenAI**.
+3. When **OpenAI** is selected, an API key input appears. Enter your `sk-…` key and click **Save configuration**. The key is stored server-side and is never returned in plain text to the browser.
+4. Choose the model you want from the model dropdown (options change based on the selected provider).
+5. The active provider and model are shown in the **status bar** at the bottom of every page. Click it to jump back to Configuration.
+
+### OpenAI API key priority
+
+| Source | Priority |
+|--------|----------|
+| Key entered and saved in the Config UI (`agent_settings.json`) | Highest |
+| `OPENAI_API_KEY` environment variable | Fallback |
+
+To use the env-var fallback without opening the UI, set `OPENAI_API_KEY` in `knowledge_hub/.env` (see `.env.example`).
 
 ## Using the Agent
 
@@ -314,6 +332,7 @@ If you encounter issues:
 - **Quota Issues**:
   - Check your Google Cloud Console for any quota limitations
   - Request quota increases if needed
+  - As an alternative, switch to the **OpenAI** provider on the Configuration page to avoid Gemini quota limits
 
 - **Missing Dependencies**:
   - Ensure all requirements are installed: `pip install -r requirements.txt`

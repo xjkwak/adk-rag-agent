@@ -13,12 +13,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface ProviderInfo {
+  id: string;
+  label: string;
+}
+
 export interface AgentConfig {
   model: string;
   instruction: string;
   default_instruction: string;
   available_models: string[];
   default_corpus: string;
+  provider: string;
+  available_providers: ProviderInfo[];
+  openai_api_key_set: boolean;
+  openai_api_key_hint: string;
+  openai_models: string[];
 }
 
 export interface CorpusInfo {
@@ -51,6 +61,8 @@ export function updateAgentConfig(body: {
   model?: string;
   instruction?: string;
   default_corpus?: string;
+  provider?: string;
+  openai_api_key?: string;
 }) {
   return request<AgentConfig>("/agent", {
     method: "PUT",

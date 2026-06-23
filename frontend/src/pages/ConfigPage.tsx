@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Eye, EyeOff, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,6 +34,10 @@ export default function ConfigPage() {
   const [model, setModel] = useState("");
   const [instruction, setInstruction] = useState("");
   const [defaultCorpus, setDefaultCorpus] = useState("peakrock-demo");
+  const [provider, setProvider] = useState("gemini");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const keyInputRef = useRef<HTMLInputElement>(null);
 
   const [corpusName, setCorpusName] = useState("");
   const [corpora, setCorpora] = useState<{ resource_name: string; display_name: string }[]>([]);
@@ -71,6 +75,8 @@ export default function ConfigPage() {
       setModel(agent.model);
       setInstruction(agent.instruction);
       setDefaultCorpus(agent.default_corpus);
+      setProvider(agent.provider ?? "gemini");
+      setOpenaiKey("");
       setCorpora(corpusList.corpora);
       const active =
         corpusList.corpora.find((c) => c.display_name === corpusList.default_corpus)
@@ -93,7 +99,24 @@ export default function ConfigPage() {
     }
   }, [corpusName, loadDocuments]);
 
+  const activeModelList = (cfg: AgentConfig | null, prov: string) =>
+    prov === "openai" ? (cfg?.openai_models ?? []) : (cfg?.available_models ?? []);
+
+  const handleProviderChange = (next: string) => {
+    setProvider(next);
+    setOpenaiKey("");
+    const firstModel = activeModelList(agentConfig, next)[0] ?? "";
+    setModel(firstModel);
+    if (next === "openai" && !agentConfig?.openai_api_key_set) {
+      setTimeout(() => keyInputRef.current?.focus(), 50);
+    }
+  };
+
   const handleSaveAgent = async () => {
+    if (provider === "openai" && !openaiKey.trim() && !agentConfig?.openai_api_key_set) {
+      setError("An OpenAI API key is required to use the OpenAI provider.");
+      return;
+    }
     setSaving(true);
     setError(null);
     setSuccess(null);
@@ -102,11 +125,15 @@ export default function ConfigPage() {
         model,
         instruction,
         default_corpus: defaultCorpus,
+        provider,
+        openai_api_key: openaiKey || undefined,
       });
       setAgentConfig(updated);
       setModel(updated.model);
       setInstruction(updated.instruction);
       setDefaultCorpus(updated.default_corpus);
+      setProvider(updated.provider ?? "gemini");
+      setOpenaiKey("");
       setSuccess("Agent settings saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save agent settings");
@@ -131,6 +158,8 @@ export default function ConfigPage() {
       setModel(updated.model);
       setInstruction(updated.instruction);
       setDefaultCorpus(updated.default_corpus);
+      setProvider(updated.provider ?? "gemini");
+      setOpenaiKey("");
       setSuccess("Agent settings reset to defaults.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reset agent settings");
@@ -245,7 +274,7 @@ export default function ConfigPage() {
         <div>
           <h1 className="text-2xl font-bold">Configuration</h1>
           <p className="text-muted-foreground mt-1">
-            Manage indexed documents, agent instructions, and the Gemini model.
+            Manage indexed documents, agent instructions, and the AI provider.
           </p>
         </div>
 
@@ -441,20 +470,91 @@ export default function ConfigPage() {
           )}
         </section>
 
-        <section className="space-y-4 rounded-xl border border-border bg-card/50 p-6">
-          <h2 className="text-lg font-semibold">Agent model</h2>
+        <section className="space-y-5 rounded-xl border border-border bg-card/50 p-6">
+          <h2 className="text-lg font-semibold">AI provider &amp; model</h2>
           <p className="text-sm text-muted-foreground">
-            Used by Chat and Support Intake. Lighter models (e.g. gemini-2.0-flash-lite)
-            reduce quota usage during demos.
+            Used by Chat and Support Intake. Lighter models (e.g.{" "}
+            <code className="text-xs">gemini-2.0-flash-lite</code> or{" "}
+            <code className="text-xs">gpt-4o-mini</code>) reduce quota usage.
           </p>
+
+          {/* Provider selector */}
           <div className="space-y-1 max-w-md">
-            <label className="text-xs text-muted-foreground">Gemini model</label>
+            <label className="text-xs text-muted-foreground">Provider</label>
+            <Select value={provider} onValueChange={handleProviderChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {(agentConfig?.available_providers ?? [
+                  { id: "gemini", label: "Gemini" },
+                  { id: "openai", label: "OpenAI" },
+                ]).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* OpenAI API key — only shown when OpenAI is selected */}
+          {provider === "openai" && (
+            <div className="space-y-1 max-w-md">
+              <label className="text-xs text-muted-foreground">
+                OpenAI API key
+                {agentConfig?.openai_api_key_set && (
+                  <span className="ml-2 text-green-600 dark:text-green-400">
+                    saved ({agentConfig.openai_api_key_hint})
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <Input
+                  ref={keyInputRef}
+                  type={showKey ? "text" : "password"}
+                  value={openaiKey}
+                  onChange={(e) => setOpenaiKey(e.target.value)}
+                  placeholder={
+                    agentConfig?.openai_api_key_set
+                      ? "Leave blank to keep existing key"
+                      : "sk-..."
+                  }
+                  className="pr-10 font-mono text-sm"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                  aria-label={showKey ? "Hide key" : "Show key"}
+                >
+                  {showKey ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {!agentConfig?.openai_api_key_set && (
+                <p className="text-xs text-muted-foreground pt-0.5">
+                  Required to use OpenAI. The key is stored server-side and
+                  never returned in plain text.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Model dropdown — provider-scoped */}
+          <div className="space-y-1 max-w-md">
+            <label className="text-xs text-muted-foreground">Model</label>
             <Select value={model} onValueChange={setModel}>
               <SelectTrigger>
                 <SelectValue placeholder="Select model" />
               </SelectTrigger>
               <SelectContent>
-                {agentConfig?.available_models.map((m) => (
+                {activeModelList(agentConfig, provider).map((m) => (
                   <SelectItem key={m} value={m}>
                     {m}
                   </SelectItem>

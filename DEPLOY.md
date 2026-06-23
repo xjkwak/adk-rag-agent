@@ -113,6 +113,7 @@ Set these on the **backend** Cloud Run service. Do not bake secrets into images;
 | `GOOGLE_CLOUD_PROJECT` | If Vertex LLM | `your-project-id` | GCP project (Vertex init skipped for RAG when local RAG is on, but LLM may still need it) |
 | `GOOGLE_CLOUD_LOCATION` | If Vertex LLM | `us-central1` | Region for Gemini via Vertex |
 | `GOOGLE_GENAI_USE_VERTEXAI` | Recommended | `True` | Route Gemini through Vertex (not AI Studio API key) |
+| `OPENAI_API_KEY` | No | — | Fallback OpenAI key; overridden by the key saved via the Config UI (stored in `agent_settings.json` on the GCS volume) |
 | `PORT` | No | `8080` | Set by Cloud Run automatically |
 
 **Local RAG only (no Vertex LLM):** set `USE_LOCAL_RAG=1` and omit or leave empty `GOOGLE_CLOUD_PROJECT` / `GOOGLE_GENAI_USE_VERTEXAI` if you switch the agent to a non-Vertex model later.
@@ -527,6 +528,7 @@ gcloud run deploy $API_SERVICE --image=${AR_IMAGE_PREFIX}/${API_SERVICE}:${IMAGE
 - [ ] Vertex API + billing if using `GOOGLE_GENAI_USE_VERTEXAI=True`
 - [ ] Runtime SA has `roles/aiplatform.user` (LLM) and `storage.objectAdmin` on RAG bucket
 - [ ] Request timeout ≥ 300s on API service
+- [ ] If using OpenAI: API key saved via Config UI or `OPENAI_API_KEY` env var set on backend service
 - [ ] Restrict `--allow-unauthenticated` for non-demo environments
 
 ---
@@ -542,6 +544,7 @@ gcloud run deploy $API_SERVICE --image=${AR_IMAGE_PREFIX}/${API_SERVICE}:${IMAGE
 | `API_UPSTREAM_HOST is required` | Set env on UI deploy |
 | Large backend image build | `.dockerignore`; chromadb first run downloads ONNX model |
 | `app_name` mismatch | API must expose `knowledge_hub` |
+| `401` / `invalid_api_key` on OpenAI calls | Enter a valid key in Config UI or set `OPENAI_API_KEY` env var on backend service |
 
 ---
 

@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes, useSearchParams } from "react-router-dom";
 import { AppControls } from "@/components/AppControls";
+import { ModelStatusBar } from "@/components/ModelStatusBar";
 import ChatPage from "@/pages/ChatPage";
 import ConfigPage from "@/pages/ConfigPage";
 import IntakePage from "@/pages/IntakePage";
@@ -57,6 +58,8 @@ export default function App() {
           <Route path="/config" element={<ConfigPage />} />
         </Routes>
       </div>
+
+      <ModelStatusBar />
     </div>
   );
 }
