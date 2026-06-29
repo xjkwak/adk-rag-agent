@@ -11,7 +11,7 @@ from typing import Any
 _ACTIVE_CORPUS_START = "<!-- ACTIVE_CORPUS_START -->"
 _ACTIVE_CORPUS_END = "<!-- ACTIVE_CORPUS_END -->"
 
-from .peakrock_instruction import PEAKROCK_INSTRUCTION
+from .tenants import DEFAULT_TENANT_ID, get_tenant, resolve_tenant_id
 from .vertex_models import STATIC_VERTEX_GEMINI_MODELS, get_available_gemini_models
 
 DEFAULT_MODEL  = "gemini-2.5-flash"
@@ -35,10 +35,12 @@ SETTINGS_PATH = SETTINGS_DIR / "agent_settings.json"
 
 
 def _default_settings() -> dict[str, Any]:
+    tenant = get_tenant(DEFAULT_TENANT_ID)
     return {
+        "tenant":         DEFAULT_TENANT_ID,
         "model":          DEFAULT_MODEL,
-        "instruction":    PEAKROCK_INSTRUCTION.strip(),
-        "default_corpus": DEFAULT_CORPUS,
+        "instruction":    tenant.instruction.strip(),
+        "default_corpus": tenant.default_corpus,
         "provider":       DEFAULT_PROVIDER,
         "openai_api_key": "",
     }
@@ -122,7 +124,10 @@ def load_settings() -> dict[str, Any]:
     if not isinstance(openai_api_key, str):
         openai_api_key = ""
 
+    tenant = resolve_tenant_id(raw.get("tenant"))
+
     return {
+        "tenant":         tenant,
         "model":          model,
         "instruction":    instruction,
         "default_corpus": default_corpus,
@@ -133,6 +138,7 @@ def load_settings() -> dict[str, Any]:
 
 def save_settings(
     *,
+    tenant: str | None = None,
     model: str | None = None,
     instruction: str | None = None,
     default_corpus: str | None = None,
@@ -141,6 +147,12 @@ def save_settings(
 ) -> dict[str, Any]:
     """Merge and persist settings; returns the saved document."""
     current = load_settings()
+
+    if tenant is not None:
+        profile = get_tenant(tenant)
+        current["tenant"] = profile.id
+        current["instruction"] = profile.instruction.strip()
+        current["default_corpus"] = profile.default_corpus
 
     if provider is not None:
         if provider not in _KNOWN_PROVIDERS:
@@ -188,13 +200,14 @@ def get_agent_settings() -> dict[str, str]:
 
 
 def reset_agent_settings() -> dict[str, Any]:
-    """Reset model, instruction, corpus, and provider to shipped defaults.
+    """Reset tenant, model, instruction, corpus, and provider to shipped defaults.
 
     The stored OpenAI API key is intentionally preserved so the user
     does not need to re-enter it after a settings reset.
     """
     defaults = _default_settings()
     return save_settings(
+        tenant=defaults["tenant"],
         model=defaults["model"],
         instruction=defaults["instruction"],
         default_corpus=defaults["default_corpus"],

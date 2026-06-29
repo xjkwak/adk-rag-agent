@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CollapsibleSection } from "@/components/CollapsibleSection";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,11 +18,14 @@ import {
   fetchAgentConfig,
   fetchCorpora,
   fetchDocuments,
+  fetchTenantProfile,
   resetAgentConfig,
+  seedTenantCorpus,
   updateAgentConfig,
   uploadDocuments,
   type AgentConfig,
   type IndexedDocument,
+  type TenantSummary,
 } from "@/api/hubConfig";
 
 export default function ConfigPage() {
@@ -31,6 +35,7 @@ export default function ConfigPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [tenant, setTenant] = useState("peakrock");
   const [model, setModel] = useState("");
   const [instruction, setInstruction] = useState("");
   const [defaultCorpus, setDefaultCorpus] = useState("peakrock-demo");
@@ -47,6 +52,7 @@ export default function ConfigPage() {
   const [newCorpusName, setNewCorpusName] = useState("");
   const [creatingCorpus, setCreatingCorpus] = useState(false);
   const [deletingCorpus, setDeletingCorpus] = useState(false);
+  const [seedingTenant, setSeedingTenant] = useState(false);
 
   const loadDocuments = useCallback(async (name: string) => {
     if (!name) return;
@@ -72,6 +78,7 @@ export default function ConfigPage() {
         fetchCorpora(),
       ]);
       setAgentConfig(agent);
+      setTenant(agent.tenant ?? "peakrock");
       setModel(agent.model);
       setInstruction(agent.instruction);
       setDefaultCorpus(agent.default_corpus);
@@ -112,6 +119,52 @@ export default function ConfigPage() {
     }
   };
 
+  const activeTenantSummary = (): TenantSummary | undefined =>
+    agentConfig?.available_tenants.find((item) => item.id === tenant);
+
+  const handleTenantChange = async (nextTenant: string) => {
+    setTenant(nextTenant);
+    setError(null);
+    try {
+      const profile = await fetchTenantProfile(nextTenant);
+      setInstruction(profile.instruction);
+      setDefaultCorpus(profile.default_corpus);
+      setCorpusName(profile.default_corpus);
+      setAgentConfig((prev) =>
+        prev
+          ? {
+              ...prev,
+              tenant: nextTenant,
+              default_instruction: profile.instruction,
+            }
+          : prev,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load tenant profile");
+    }
+  };
+
+  const handleSeedTenant = async () => {
+    setSeedingTenant(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result = await seedTenantCorpus(tenant);
+      setSuccess(
+        result.message ||
+          `Seeded ${result.corpus_name} (${result.files_added} file(s) added).`,
+      );
+      const corpusList = await fetchCorpora();
+      setCorpora(corpusList.corpora);
+      setCorpusName(result.corpus_name);
+      await loadDocuments(result.corpus_name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to seed tenant corpus");
+    } finally {
+      setSeedingTenant(false);
+    }
+  };
+
   const handleSaveAgent = async () => {
     if (provider === "openai" && !openaiKey.trim() && !agentConfig?.openai_api_key_set) {
       setError("An OpenAI API key is required to use the OpenAI provider.");
@@ -122,6 +175,7 @@ export default function ConfigPage() {
     setSuccess(null);
     try {
       const updated = await updateAgentConfig({
+        tenant,
         model,
         instruction,
         default_corpus: defaultCorpus,
@@ -129,6 +183,7 @@ export default function ConfigPage() {
         openai_api_key: openaiKey || undefined,
       });
       setAgentConfig(updated);
+      setTenant(updated.tenant);
       setModel(updated.model);
       setInstruction(updated.instruction);
       setDefaultCorpus(updated.default_corpus);
@@ -155,9 +210,11 @@ export default function ConfigPage() {
     try {
       const updated = await resetAgentConfig();
       setAgentConfig(updated);
+      setTenant(updated.tenant);
       setModel(updated.model);
       setInstruction(updated.instruction);
       setDefaultCorpus(updated.default_corpus);
+      setCorpusName(updated.default_corpus);
       setProvider(updated.provider ?? "gemini");
       setOpenaiKey("");
       setSuccess("Agent settings reset to defaults.");
@@ -259,6 +316,19 @@ export default function ConfigPage() {
     }
   };
 
+  const saveButton = (size: "default" | "sm" = "default") => (
+    <Button type="button" onClick={handleSaveAgent} disabled={saving} size={size}>
+      {saving ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          Saving…
+        </>
+      ) : (
+        "Save configuration"
+      )}
+    </Button>
+  );
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -270,12 +340,20 @@ export default function ConfigPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-24">
-        <div>
-          <h1 className="text-2xl font-bold">Configuration</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage indexed documents, agent instructions, and the AI provider.
-          </p>
+      <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6 pb-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Configuration</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage indexed documents, agent instructions, and the AI provider.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {saveButton()}
+            <Button type="button" variant="outline" onClick={loadAll} disabled={saving}>
+              Reload
+            </Button>
+          </div>
         </div>
 
         {(error || success) && (
@@ -290,13 +368,82 @@ export default function ConfigPage() {
           </div>
         )}
 
-        <section className="space-y-4 rounded-xl border border-border bg-card/50 p-6">
-          <h2 className="text-lg font-semibold">Corpora</h2>
-          <p className="text-sm text-muted-foreground">
-            Chat uses the default corpus below. Create or delete corpora here; document
-            uploads apply to the selected corpus.
-          </p>
+        <CollapsibleSection
+          title="Tenant profile"
+          description="Select the demo tenant — sets agent instruction and default corpus."
+          defaultOpen
+        >
+          <div className="space-y-1 max-w-md">
+            <label className="text-xs text-muted-foreground">Tenant</label>
+            <Select value={tenant} onValueChange={(value) => void handleTenantChange(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select tenant" />
+              </SelectTrigger>
+              <SelectContent>
+                {(agentConfig?.available_tenants ?? []).map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
+          {activeTenantSummary() && (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">{activeTenantSummary()?.description}</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Default corpus</p>
+                  <p className="font-medium">{activeTenantSummary()?.default_corpus}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Bundled assets</p>
+                  <p className="font-medium">{activeTenantSummary()?.assets_path}</p>
+                </div>
+              </div>
+              {activeTenantSummary()?.asset_files.length ? (
+                <ul className="rounded-lg border border-border divide-y divide-border text-xs">
+                  {activeTenantSummary()?.asset_files.map((file) => (
+                    <li key={file} className="px-3 py-2 font-mono">
+                      {file}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No bundled asset files found for this tenant.
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleSeedTenant()}
+                  disabled={seedingTenant}
+                >
+                  {seedingTenant ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  ) : (
+                    <Upload className="h-4 w-4 mr-1" />
+                  )}
+                  Seed corpus from assets
+                </Button>
+                <span className="text-xs text-muted-foreground self-center">
+                  Indexes files from the tenant folder into{" "}
+                  <code>{activeTenantSummary()?.default_corpus}</code>.
+                </span>
+              </div>
+            </div>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Corpora"
+          description="Default corpus for chat, corpus management, and creation."
+          defaultOpen
+        >
           <div className="space-y-1 max-w-md">
             <label className="text-xs text-muted-foreground">
               Default corpus for chat
@@ -318,7 +465,7 @@ export default function ConfigPage() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground pt-1">
-              Saved with agent settings. The chat page does not expose corpus selection.
+              Set automatically when you choose a tenant. Saved with agent settings.
             </p>
           </div>
 
@@ -395,10 +542,13 @@ export default function ConfigPage() {
               Create corpus
             </Button>
           </div>
-        </section>
+        </CollapsibleSection>
 
-        <section className="space-y-4 rounded-xl border border-border bg-card/50 p-6">
-          <h2 className="text-lg font-semibold">Knowledge base documents</h2>
+        <CollapsibleSection
+          title="Knowledge base documents"
+          description="Upload and manage indexed files for the selected corpus."
+          defaultOpen={false}
+        >
           {!corpusName ? (
             <p className="text-sm text-muted-foreground">
               Select or create a corpus above to manage documents.
@@ -468,17 +618,19 @@ export default function ConfigPage() {
           )}
             </>
           )}
-        </section>
+        </CollapsibleSection>
 
-        <section className="space-y-5 rounded-xl border border-border bg-card/50 p-6">
-          <h2 className="text-lg font-semibold">AI provider &amp; model</h2>
+        <CollapsibleSection
+          title="AI provider & model"
+          description="Provider, API key, and model used by Chat and Support Intake."
+          defaultOpen
+        >
           <p className="text-sm text-muted-foreground">
-            Used by Chat and Support Intake. Lighter models (e.g.{" "}
+            Lighter models (e.g.{" "}
             <code className="text-xs">gemini-2.0-flash-lite</code> or{" "}
             <code className="text-xs">gpt-4o-mini</code>) reduce quota usage.
           </p>
 
-          {/* Provider selector */}
           <div className="space-y-1 max-w-md">
             <label className="text-xs text-muted-foreground">Provider</label>
             <Select value={provider} onValueChange={handleProviderChange}>
@@ -562,12 +714,14 @@ export default function ConfigPage() {
               </SelectContent>
             </Select>
           </div>
-        </section>
+        </CollapsibleSection>
 
-        <section className="space-y-4 rounded-xl border border-border bg-card/50 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Agent instruction</h2>
-            <div className="flex gap-2">
+        <CollapsibleSection
+          title="Agent instruction"
+          description="System prompt that guides the Oracle agent in chat."
+          defaultOpen={false}
+          actions={
+            <>
               <Button
                 type="button"
                 variant="outline"
@@ -585,8 +739,9 @@ export default function ConfigPage() {
               >
                 Reset all agent settings
               </Button>
-            </div>
-          </div>
+            </>
+          }
+        >
           <Textarea
             value={instruction}
             onChange={(e) => setInstruction(e.target.value)}
@@ -594,23 +749,7 @@ export default function ConfigPage() {
             className="font-mono text-sm min-h-[320px]"
             placeholder="System instruction for the Oracle agent…"
           />
-        </section>
-
-        <div className="flex gap-3">
-          <Button type="button" onClick={handleSaveAgent} disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Saving…
-              </>
-            ) : (
-              "Save configuration"
-            )}
-          </Button>
-          <Button type="button" variant="outline" onClick={loadAll} disabled={saving}>
-            Reload
-          </Button>
-        </div>
+        </CollapsibleSection>
       </div>
     </div>
   );

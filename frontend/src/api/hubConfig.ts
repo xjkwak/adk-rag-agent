@@ -18,7 +18,18 @@ export interface ProviderInfo {
   label: string;
 }
 
+export interface TenantSummary {
+  id: string;
+  label: string;
+  description: string;
+  default_corpus: string;
+  assets_path: string;
+  asset_files: string[];
+}
+
 export interface AgentConfig {
+  tenant: string;
+  available_tenants: TenantSummary[];
   model: string;
   instruction: string;
   default_instruction: string;
@@ -58,6 +69,7 @@ export function fetchAgentConfig() {
 }
 
 export function updateAgentConfig(body: {
+  tenant?: string;
   model?: string;
   instruction?: string;
   default_corpus?: string;
@@ -73,6 +85,29 @@ export function updateAgentConfig(body: {
 
 export function resetAgentConfig() {
   return request<AgentConfig>("/agent/reset", { method: "POST" });
+}
+
+export function fetchTenants() {
+  return request<TenantSummary[]>("/tenants");
+}
+
+export function fetchTenantProfile(tenantId: string) {
+  return request<TenantSummary & { instruction: string }>(
+    `/tenants/${encodeURIComponent(tenantId)}`,
+  );
+}
+
+export function seedTenantCorpus(tenantId: string) {
+  return request<{
+    status: string;
+    message: string;
+    tenant: string;
+    corpus_name: string;
+    files_added: number;
+    files_skipped: number;
+    chunk_count: number;
+    asset_files: string[];
+  }>(`/tenants/${encodeURIComponent(tenantId)}/seed`, { method: "POST" });
 }
 
 export function fetchCorpora() {

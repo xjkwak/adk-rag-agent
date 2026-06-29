@@ -28,6 +28,12 @@ export function TicketPreviewCard({
           <dt className="text-muted-foreground text-xs">Issue type</dt>
           <dd>{preview.issue_type}</dd>
         </div>
+        {preview.time_estimate && (
+          <div>
+            <dt className="text-muted-foreground text-xs">Rough estimate</dt>
+            <dd>{preview.time_estimate}</dd>
+          </div>
+        )}
         {preview.environment && (
           <div>
             <dt className="text-muted-foreground text-xs">Environment</dt>
@@ -43,7 +49,7 @@ export function TicketPreviewCard({
       </dl>
       <div className="flex gap-2">
         <Button size="sm" onClick={onConfirm} disabled={disabled}>
-          Confirm & Create Ticket
+          Confirm & {preview.issue_type === "Story" ? "Create Story" : "Create Bug"}
         </Button>
         <Button size="sm" variant="outline" onClick={onCancel} disabled={disabled}>
           Cancel

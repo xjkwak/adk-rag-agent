@@ -13,6 +13,12 @@ from typing import Any
 from ..config import get_jira_settings
 from ..config_loader import get_jira_config
 from ..orchestrator.field_heuristics import build_ticket_title_heuristic
+from ..orchestrator.flows import (
+    estimate_ticket_time,
+    get_flow_config,
+    get_flow_id,
+    get_flow_label,
+)
 from ..orchestrator.state import TicketPreview
 
 logger = logging.getLogger(__name__)
@@ -450,15 +456,27 @@ def build_ticket_preview(
     summary: str | None = None,
 ) -> TicketPreview:
     jira_cfg = get_jira_config()
+    flow_cfg = get_flow_config(request_type)
     defaults = jira_cfg.get("defaults", {}).get(request_type, {})
-    issue_type = defaults.get("issue_type", "Task")
+    issue_type = flow_cfg.get("issue_type") or defaults.get("issue_type", "Task")
     labels = list(jira_cfg.get("labels", ["support-intake"]))
     labels.append(request_type.replace("_", "-"))
+    flow_id = get_flow_id(request_type)
+    flow_label = get_flow_label(request_type)
+    time_estimate = estimate_ticket_time(request_type)
 
     title = summary or build_ticket_title_heuristic(collected_fields, request_type)
+    description_body = description.rstrip()
+    if time_estimate and "**Rough time estimate:**" not in description_body:
+        description_body = (
+            f"{description_body}\n\n"
+            f"**Rough time estimate:** {time_estimate} "
+            "(placeholder for sprint planning)"
+        )
+
     return TicketPreview(
         summary=title,
-        description=description,
+        description=description_body,
         issue_type=issue_type,
         request_type=request_type,
         priority=collected_fields.get("priority"),
@@ -469,6 +487,9 @@ def build_ticket_preview(
             for k, v in collected_fields.items()
             if v is not None and k not in ("summary",)
         },
+        intake_flow=flow_id,
+        flow_label=flow_label,
+        time_estimate=time_estimate,
     )
 
 

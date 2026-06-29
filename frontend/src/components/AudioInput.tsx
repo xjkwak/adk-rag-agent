@@ -5,14 +5,27 @@ import { Mic, Square, Upload, Loader2 } from "lucide-react";
 import { transcribeAudio } from "@/api/intake";
 
 interface AudioInputProps {
-  onTranscriptConfirmed: (transcript: string) => void;
+  /** Legacy: send transcript immediately (standalone mode). */
+  onTranscriptConfirmed?: (transcript: string) => void;
+  /** Combined mode: return audio blob (+ optional transcript preview). */
+  onAudioReady?: (blob: Blob, mimeType: string, transcript?: string) => void;
   disabled?: boolean;
+  mode?: "standalone" | "combined";
 }
 
-export function AudioInput({ onTranscriptConfirmed, disabled }: AudioInputProps) {
+export function AudioInput({
+  onTranscriptConfirmed,
+  onAudioReady,
+  disabled,
+  mode = "standalone",
+}: AudioInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
+  const [pendingBlob, setPendingBlob] = useState<{
+    blob: Blob;
+    mimeType: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -31,22 +44,42 @@ export function AudioInput({ onTranscriptConfirmed, disabled }: AudioInputProps)
     wasTranscribingRef.current = isTranscribing;
   }, [isTranscribing, transcript]);
 
-  const processBlob = useCallback(async (blob: Blob, mimeType: string) => {
-    setIsTranscribing(true);
-    setError(null);
-    try {
-      const text = await transcribeAudio(blob, mimeType);
-      setTranscript(text);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Transcription failed");
-    } finally {
-      setIsTranscribing(false);
-    }
-  }, []);
+  const processBlob = useCallback(
+    async (blob: Blob, mimeType: string) => {
+      setIsTranscribing(true);
+      setError(null);
+      setPendingBlob({ blob, mimeType });
+
+      if (mode === "combined" && onAudioReady) {
+        try {
+          const text = await transcribeAudio(blob, mimeType);
+          setTranscript(text);
+          onAudioReady(blob, mimeType, text);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Transcription failed");
+          onAudioReady(blob, mimeType);
+        } finally {
+          setIsTranscribing(false);
+        }
+        return;
+      }
+
+      try {
+        const text = await transcribeAudio(blob, mimeType);
+        setTranscript(text);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Transcription failed");
+      } finally {
+        setIsTranscribing(false);
+      }
+    },
+    [mode, onAudioReady],
+  );
 
   const startRecording = async () => {
     setError(null);
     setTranscript(null);
+    setPendingBlob(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported("audio/webm")
@@ -85,11 +118,20 @@ export function AudioInput({ onTranscriptConfirmed, disabled }: AudioInputProps)
   };
 
   const confirmTranscript = () => {
-    if (transcript?.trim()) {
-      onTranscriptConfirmed(transcript.trim());
+    if (!transcript?.trim()) return;
+    if (mode === "combined" && pendingBlob && onAudioReady) {
+      onAudioReady(pendingBlob.blob, pendingBlob.mimeType, transcript.trim());
       setTranscript(null);
+      setPendingBlob(null);
+      return;
     }
+    onTranscriptConfirmed?.(transcript.trim());
+    setTranscript(null);
+    setPendingBlob(null);
   };
+
+  const showStandalonePreview =
+    mode === "standalone" && transcript !== null && !onAudioReady;
 
   return (
     <div className="flex flex-col gap-2">
@@ -144,11 +186,14 @@ export function AudioInput({ onTranscriptConfirmed, disabled }: AudioInputProps)
         {isRecording && (
           <span className="text-xs text-red-500 animate-pulse">Recording…</span>
         )}
+        {mode === "combined" && pendingBlob && !isTranscribing && (
+          <span className="text-xs text-muted-foreground">Voice note added</span>
+        )}
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
 
-      {transcript !== null && (
+      {showStandalonePreview && (
         <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
           <p className="font-medium text-xs text-muted-foreground mb-1">
             Transcript — edit if needed before sending
@@ -175,7 +220,10 @@ export function AudioInput({ onTranscriptConfirmed, disabled }: AudioInputProps)
               type="button"
               size="sm"
               variant="outline"
-              onClick={() => setTranscript(null)}
+              onClick={() => {
+                setTranscript(null);
+                setPendingBlob(null);
+              }}
               disabled={disabled}
             >
               Discard

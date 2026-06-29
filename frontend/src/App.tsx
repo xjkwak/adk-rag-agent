@@ -3,6 +3,7 @@ import { AppControls } from "@/components/AppControls";
 import { ModelStatusBar } from "@/components/ModelStatusBar";
 import ChatPage from "@/pages/ChatPage";
 import ConfigPage from "@/pages/ConfigPage";
+import EvalsPage from "@/pages/EvalsPage";
 import IntakePage from "@/pages/IntakePage";
 import { cn } from "@/utils";
 
@@ -41,6 +42,9 @@ export default function App() {
               <NavLink to="/intake" className={navLinkClass}>
                 Support Intake
               </NavLink>
+              <NavLink to="/evals" className={navLinkClass}>
+                Evals
+              </NavLink>
               <NavLink to="/config" className={navLinkClass}>
                 Configuration
               </NavLink>
@@ -55,6 +59,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ChatPage />} />
           <Route path="/intake" element={<IntakePage />} />
+          <Route path="/evals" element={<EvalsPage />} />
           <Route path="/config" element={<ConfigPage />} />
         </Routes>
       </div>

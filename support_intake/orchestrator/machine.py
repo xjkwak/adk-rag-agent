@@ -14,24 +14,27 @@ from ..adapters.jira_mcp import (
     is_fixed_issue_mode,
 )
 from ..adapters.knowledge_hub import (
-    coderoad_missing_fields,
     generate_grounded_answer,
-    get_coderoad_batch_follow_up,
     get_intake_search_corpus,
-    has_complete_coderoad_context,
     is_actionable_kb_answer,
-    normalize_coderoad_environment,
     search_knowledge_hub,
     _fallback_display_guidance,
 )
 from ..config_loader import (
-    get_batch_follow_up_message,
     get_global_config,
     get_optional_fields,
-    get_required_fields,
     load_intake_config,
 )
 from . import nlu
+from .flows import (
+    get_flow_id,
+    should_attempt_kb_resolution,
+)
+from .intake_fields import (
+    build_intake_batch_follow_up,
+    compute_missing_fields,
+    ui_hints_for_collection,
+)
 from .state import ConversationState, ConversationStatus, TicketPreview
 
 logger = logging.getLogger(__name__)
@@ -56,7 +59,7 @@ class OrchestratorResponse:
 
 
 def _ui_hints(state: ConversationState) -> dict[str, Any]:
-    return {
+    hints: dict[str, Any] = {
         "showTicketPreview": state.ticket_preview is not None
         and state.status == ConversationStatus.AWAITING_TICKET_CONFIRMATION,
         "showKbArticles": False,
@@ -64,7 +67,14 @@ def _ui_hints(state: ConversationState) -> dict[str, Any]:
         "awaitingSolutionConfirmation": state.status == ConversationStatus.VERIFYING_SOLUTION,
         "showJiraCreated": state.jira_issue_key is not None,
         "isComplete": state.status in (ConversationStatus.COMPLETE, ConversationStatus.CLOSED),
+        "intakeFlow": state.intake_flow,
     }
+    if (
+        state.status == ConversationStatus.COLLECTING_INFORMATION
+        and state.missing_fields
+    ):
+        hints.update(ui_hints_for_collection(state.missing_fields))
+    return hints
 
 
 def _articles_from_state(state: ConversationState) -> list[dict[str, Any]]:
@@ -80,45 +90,65 @@ def _articles_from_state(state: ConversationState) -> list[dict[str, Any]]:
 
 
 def _merge_fields(state: ConversationState, request_type: str) -> None:
-    required = get_required_fields(request_type)
+    from .intake_fields import get_intake_required_fields
+
+    required = get_intake_required_fields(request_type)
     optional = get_optional_fields(request_type)
-    all_fields = required + [f for f in optional if f not in required]
+    all_fields = list(dict.fromkeys(required + optional))
     if get_intake_search_corpus() == "amtech-demo":
         for field in ("module", "identifier", "description", "environment"):
             if field not in all_fields:
                 all_fields.append(field)
+
     extracted = nlu.extract_fields(
         state.messages, request_type, all_fields, state.collected_fields
     )
     for k, v in extracted.items():
         if v is not None:
             state.collected_fields[k] = v
+
     if get_intake_search_corpus() == "amtech-demo":
-        if state.collected_fields.get("system") and not state.collected_fields.get("module"):
+        if state.collected_fields.get("system") and not state.collected_fields.get(
+            "module"
+        ):
             state.collected_fields["module"] = state.collected_fields["system"]
+        if state.collected_fields.get("module") and not state.collected_fields.get(
+            "system"
+        ):
+            state.collected_fields["system"] = state.collected_fields["module"]
         if state.collected_fields.get("actual_behavior") and not state.collected_fields.get(
             "description"
         ):
-            state.collected_fields["description"] = state.collected_fields["actual_behavior"]
+            state.collected_fields["description"] = state.collected_fields[
+                "actual_behavior"
+            ]
+        from ..adapters.knowledge_hub import (
+            normalize_coderoad_collected_fields,
+            normalize_coderoad_environment,
+        )
+
+        full_text = "\n".join(
+            m.get("content", "")
+            for m in state.messages
+            if m.get("role") == "user"
+        )
+        normalize_coderoad_collected_fields(state.collected_fields, full_text)
         env = normalize_coderoad_environment(
-            state.collected_fields.get("environment"), state.original_message
+            state.collected_fields.get("environment"), full_text
         )
         if env:
             state.collected_fields["environment"] = env
         elif "environment" in state.collected_fields:
             del state.collected_fields["environment"]
-    else:
-        state.compute_missing_fields(required)
 
 
 def _sync_ticket_collection_gaps(state: ConversationState, request_type: str) -> None:
-    """Ensure required ticket fields are collected before showing a Jira preview."""
-    if get_intake_search_corpus() == "amtech-demo":
-        gaps = coderoad_missing_fields(state.collected_fields, state.original_message)
-        state.missing_fields = gaps
-        return
-    required = get_required_fields(request_type)
-    state.compute_missing_fields(required)
+    """Ensure required ticket fields are collected before KB or ticket."""
+    state.missing_fields = compute_missing_fields(
+        state.collected_fields,
+        state.messages,
+        request_type,
+    )
 
 
 def _batch_follow_up(state: ConversationState) -> str | None:
@@ -130,28 +160,29 @@ def _batch_follow_up(state: ConversationState) -> str | None:
     if not state.missing_fields:
         return None
 
-    coderoad_msg = get_coderoad_batch_follow_up(
-        state.original_message,
-        state.missing_fields,
-        state.knowledge_results,
+    understood = (
+        state.original_message
+        or state.collected_fields.get("description")
+        or state.collected_fields.get("actual_behavior")
+        or "your issue"
     )
-    if coderoad_msg:
-        footer = global_cfg.get(
-            "batch_fields_footer",
-            "You can reply in a single message with all of the information above.",
-        )
-        return f"{coderoad_msg}\n\n{footer}"
-
-    return get_batch_follow_up_message(
-        state.request_type or "unclear", state.missing_fields
+    return build_intake_batch_follow_up(
+        request_type=state.request_type or "unclear",
+        missing_fields=state.missing_fields,
+        understood=str(understood).strip(),
     )
 
 
 def _try_kb_resolution(state: ConversationState) -> OrchestratorResponse | None:
     """Search configured Knowledge Hub corpus and return an answer when retrieval supports one."""
-    if get_intake_search_corpus() == "amtech-demo" and not has_complete_coderoad_context(
-        state.collected_fields, state.original_message
-    ):
+    if state.missing_fields:
+        return None
+
+    query = state.original_message or state.collected_fields.get("summary") or ""
+    from ..adapters.knowledge_hub import should_skip_kb_resolution_for_message
+
+    if should_skip_kb_resolution_for_message(query):
+        logger.info("Skipping KB resolution — message requires ticket escalation")
         return None
 
     state.status = ConversationStatus.SEARCHING_KNOWLEDGE
@@ -184,7 +215,11 @@ def _try_kb_resolution(state: ConversationState) -> OrchestratorResponse | None:
     state.kb_answer = answer
     state.resolution_attempted = True
     state.status = ConversationStatus.VERIFYING_SOLUTION
-    msg = f"{answer}\n\nDid this resolve your issue? (yes/no)"
+    msg = (
+        "**Step-by-step resolution**\n\n"
+        f"{answer}\n\n"
+        "Did this resolve your issue? (yes/no)"
+    )
     state.add_message("assistant", msg)
     return OrchestratorResponse(
         assistant_message=msg,
@@ -231,9 +266,16 @@ def _prepare_ticket(state: ConversationState) -> OrchestratorResponse:
             f"\n\nThis demo will **update** existing ticket **{fixed_key}** in Jira."
         )
 
+    estimate_line = ""
+    if preview.time_estimate:
+        estimate_line = f"**Rough estimate:** {preview.time_estimate}\n\n"
+
+    issue_verb = "user story" if preview.issue_type == "Story" else "bug ticket"
     msg = (
-        f"I have everything I need to open your support ticket. Please confirm the details "
-        f"below or let me know if you'd like to change anything.{target_line}\n\n"
+        f"I have everything I need to open your {issue_verb}. "
+        f"Please confirm the details below or let me know if you'd like to "
+        f"change anything.{target_line}\n\n"
+        f"{estimate_line}"
         f"**Summary:** {preview.summary}\n\n"
         f"**Type:** {preview.issue_type}\n\n"
         f"**Description preview:**\n{preview.description[:500]}"
@@ -263,13 +305,27 @@ def _begin_new_topic(state: ConversationState, user_message: str) -> None:
     state.kb_confidence = 0.0
     state.resolution_attempted = False
     state.solution_accepted = None
+    state.intake_flow = None
+    state.flow_label = None
+
+
+def _sync_flow_metadata(state: ConversationState, request_type: str) -> None:
+    from .flows import get_flow_label
+
+    state.intake_flow = get_flow_id(request_type)
+    state.flow_label = get_flow_label(request_type)
 
 
 async def process_message(
     state: ConversationState,
     user_message: str,
+    message_metadata: dict[str, Any] | None = None,
 ) -> OrchestratorResponse:
-    state.add_message("user", user_message)
+    state.add_message("user", user_message, metadata=message_metadata)
+    if message_metadata and message_metadata.get("hasAudio"):
+        transcript = message_metadata.get("transcript")
+        if isinstance(transcript, str) and transcript.strip():
+            state.transcript = transcript.strip()
 
     if state.status == ConversationStatus.VERIFYING_SOLUTION:
         feedback = nlu.detect_solution_feedback(user_message)
@@ -278,8 +334,9 @@ async def process_message(
             state.status = ConversationStatus.CLOSED
             return OrchestratorResponse(
                 assistant_message=(
-                    "Great! I'm glad that resolved your issue. "
-                    "No ticket was created. Feel free to reach out if you need anything else."
+                    "Great! I'm glad the known-bug resolution fixed your issue. "
+                    "No Jira ticket was created. Feel free to reach out if you "
+                    "need anything else."
                 ),
                 state=state,
                 ui_hints=_ui_hints(state),
@@ -316,28 +373,58 @@ async def process_message(
     if state.original_message is None:
         state.original_message = user_message
 
-    if state.request_type is None:
+    just_classified = state.request_type is None
+    if just_classified:
         state.request_type = nlu.classify_request(state.messages)
-        logger.info("Classified request as %s", state.request_type)
+        _sync_flow_metadata(state, state.request_type)
+        logger.info(
+            "Classified request as %s (%s)",
+            state.request_type,
+            state.intake_flow,
+        )
 
     request_type = state.request_type
+    _sync_flow_metadata(state, request_type)
+
+    status_intro = ""
+    if just_classified:
+        if should_attempt_kb_resolution(request_type):
+            status_intro = "Searching the knowledge base for a known fix…"
+        elif request_type == "feature_request":
+            status_intro = "Gathering details for a Jira user story."
+        else:
+            status_intro = "Gathering context for a Jira bug ticket."
 
     _merge_fields(state, request_type)
 
-    # 1. Collect missing CoderoadERP context before KB or ticket (e.g. LIVE vs TEST)
+    # 1. Collect missing context before KB or ticket
     _sync_ticket_collection_gaps(state, request_type)
     if state.missing_fields:
         batch = _ask_missing_fields(state)
         if batch:
+            if status_intro:
+                batch.assistant_message = (
+                    f"{status_intro}\n\n{batch.assistant_message}"
+                )
             return batch
 
-    # 2. Try Knowledge Hub when all critical variables are present
-    kb_response = _try_kb_resolution(state)
-    if kb_response:
-        return kb_response
+    # 2. Flow 2 — try Knowledge Hub for known bugs only
+    if should_attempt_kb_resolution(request_type):
+        kb_response = _try_kb_resolution(state)
+        if kb_response:
+            if status_intro:
+                kb_response.assistant_message = (
+                    f"{status_intro}\n\n{kb_response.assistant_message}"
+                )
+            return kb_response
 
-    # 3. All required fields present — ticket preview
-    return _prepare_ticket(state)
+    # 3. Flow 1 & 3 — ticket preview (Story or Bug)
+    ticket_response = _prepare_ticket(state)
+    if status_intro:
+        ticket_response.assistant_message = (
+            f"{status_intro}\n\n{ticket_response.assistant_message}"
+        )
+    return ticket_response
 
 
 async def confirm_ticket(state: ConversationState) -> OrchestratorResponse:
@@ -366,8 +453,18 @@ async def confirm_ticket(state: ConversationState) -> OrchestratorResponse:
         state.ticket_confirmed = True
         state.status = ConversationStatus.COMPLETE
         verb = "updated" if fixed_key else "created"
+        ticket_kind = (
+            "user story"
+            if state.ticket_preview and state.ticket_preview.issue_type == "Story"
+            else "bug ticket"
+        )
+        estimate = ""
+        if state.ticket_preview and state.ticket_preview.time_estimate:
+            estimate = (
+                f"\n\n**Rough estimate:** {state.ticket_preview.time_estimate}"
+            )
         msg = (
-            f"Your support ticket **{key}** has been {verb}.\n\n"
+            f"Your {ticket_kind} **{key}** has been {verb}.{estimate}\n\n"
             f"[View in Jira]({url})\n\n"
             "Our team will review your request. Thank you!\n\n"
             "If you have another question, just type it below."

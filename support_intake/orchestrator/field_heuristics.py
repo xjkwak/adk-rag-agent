@@ -52,6 +52,17 @@ def classify_request_heuristic(messages: list[dict[str, str]]) -> str | None:
     if any(
         phrase in text
         for phrase in (
+            "known issue",
+            "known bug",
+            "documented",
+            "kb-",
+            "already reported",
+        )
+    ):
+        return "known_issue"
+    if any(
+        phrase in text
+        for phrase in (
             "error",
             "warning",
             "broken",
@@ -62,6 +73,7 @@ def classify_request_heuristic(messages: list[dict[str, str]]) -> str | None:
             "blank screen",
             "incident",
             "outage",
+            "bug",
         )
     ):
         return "technical_incident"
@@ -92,7 +104,7 @@ def extract_coderoad_fields_heuristic(
             extracted["environment"] = env
 
     if "module" in field_names and not merged.get("module"):
-        module = merged.get("system") or _infer_module_from_text(full_user_text)
+        module = _infer_module_from_text(full_user_text) or merged.get("system")
         if module:
             extracted["module"] = module
 

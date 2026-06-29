@@ -42,6 +42,9 @@ class TicketPreview:
     environment: str | None = None
     labels: list[str] = field(default_factory=list)
     additional_info: dict[str, Any] = field(default_factory=dict)
+    intake_flow: str | None = None
+    flow_label: str | None = None
+    time_estimate: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -67,6 +70,9 @@ class ConversationState:
     ticket_confirmed: bool = False
     jira_issue_key: str | None = None
     jira_issue_url: str | None = None
+    intake_flow: str | None = None
+    flow_label: str | None = None
+    kb_article_ref: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +91,8 @@ class ConversationState:
             "solutionAccepted": self.solution_accepted,
             "ticketPreview": self.ticket_preview.to_dict() if self.ticket_preview else None,
             "ticketConfirmed": self.ticket_confirmed,
+            "intakeFlow": self.intake_flow,
+            "flowLabel": self.flow_label,
             "jiraIssueKey": self.jira_issue_key,
             "jiraIssueUrl": self.jira_issue_url,
         }
@@ -105,6 +113,8 @@ class ConversationState:
             resolution_attempted=bool(data.get("resolutionAttempted", False)),
             solution_accepted=data.get("solutionAccepted"),
             ticket_confirmed=bool(data.get("ticketConfirmed", False)),
+            intake_flow=data.get("intakeFlow"),
+            flow_label=data.get("flowLabel"),
             jira_issue_key=data.get("jiraIssueKey"),
             jira_issue_url=data.get("jiraIssueUrl"),
         )
@@ -128,11 +138,22 @@ class ConversationState:
                 environment=tp.get("environment"),
                 labels=list(tp.get("labels", [])),
                 additional_info=dict(tp.get("additional_info", {})),
+                intake_flow=tp.get("intake_flow"),
+                flow_label=tp.get("flow_label"),
+                time_estimate=tp.get("time_estimate"),
             )
         return state
 
-    def add_message(self, role: str, content: str) -> None:
-        self.messages.append({"role": role, "content": content})
+    def add_message(
+        self,
+        role: str,
+        content: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        message: dict[str, Any] = {"role": role, "content": content}
+        if metadata:
+            message.update(metadata)
+        self.messages.append(message)
 
     def compute_missing_fields(self, required: list[str]) -> list[str]:
         missing = []

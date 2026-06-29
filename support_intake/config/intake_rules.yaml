@@ -9,16 +9,15 @@ request_types:
 
   known_issue:
     label: Known issue with existing solution
-    required_fields: [system, actual_behavior]
-    optional_fields: [environment, error_message, steps_to_reproduce]
+    required_fields: [system, environment, identifier, actual_behavior]
+    optional_fields: [error_message, steps_to_reproduce]
     always_create_ticket: false
     auto_answer_allowed: true
     follow_up_questions:
       system: "Which product or system is affected?"
+      environment: "Which environment — LIVE (production) or TEST (staging)?"
+      identifier: "What is the invoice, order, or document number?"
       actual_behavior: "What is happening when you encounter this issue?"
-      environment: "Which environment is affected (Production, Staging, Dev)?"
-      error_message: "What error message do you see, if any?"
-      steps_to_reproduce: "What steps reproduce the problem?"
 
   technical_incident:
     label: New incident or technical problem
@@ -64,14 +63,18 @@ request_types:
       approver: "Who should approve this request?"
 
   unclear:
-    label: Unclear request requiring more information
-    required_fields: [summary]
-    optional_fields: [system]
-    always_create_ticket: false
+    label: Unknown bug or unclear technical issue
+    required_fields: [system, summary, actual_behavior]
+    optional_fields: [environment, error_message, steps_to_reproduce, business_impact]
+    always_create_ticket: true
     auto_answer_allowed: false
     follow_up_questions:
-      summary: "Could you describe the problem or request in more detail?"
+      summary: "Could you describe the problem in more detail?"
       system: "Which product or system does this relate to?"
+      actual_behavior: "What is happening?"
+      environment: "Which environment is affected?"
+      error_message: "What error message do you see, if any?"
+      business_impact: "What is the business impact?"
 
   unsupported:
     label: Unsupported request requiring human assistance
@@ -89,14 +92,43 @@ global:
   knowledge_confidence_threshold: 0.72
   knowledge_min_results: 1
   batch_fields_intro: >
-    I couldn't find a self-service answer in our knowledge base yet.
-    To open your support ticket, please provide the following:
+    Please provide **all** of the following in one message (or use the
+    quick-select buttons below):
   batch_fields_footer: >
-    You can reply in a single message with all of the information above.
+    You can answer everything at once — for example: "System: Billing,
+    Environment: LIVE, Invoice: INV-4001".
   opening_message: >
-    Hello! I'm the Support Intake Assistant. Describe your issue or question
-    in text or audio, and I'll search our Knowledge Hub for a solution or help
-    you create a complete support ticket. How can I help you today?
+    Hello! I'm the Support Intake Assistant. I route every request through
+    one of three flows: **new feature** (user story), **known bug** (KB
+    resolution steps, then bug if needed), or **unknown bug** (bug ticket with
+    full context). Describe your issue in text, voice, or attachments—or
+    combine them. How can I help you today?
+
+flows:
+  flow_1:
+    label: "Flow 1 — New feature request"
+    summary: >
+      Identifies a new requirement and creates a Jira user story with full
+      detail and a rough time estimate.
+    try_kb: false
+    issue_type: Story
+    default_estimate: "16h (rough)"
+  flow_2:
+    label: "Flow 2 — Known bug"
+    summary: >
+      Recognizes a documented issue, shows step-by-step resolution from the
+      knowledge base; closes if fixed or opens a bug ticket if not.
+    try_kb: true
+    issue_type: Bug
+    default_estimate: "4h (rough)"
+  flow_3:
+    label: "Flow 3 — Unknown bug"
+    summary: >
+      Creates a Jira bug ticket with all gathered context and a rough time
+      estimate when no known fix applies.
+    try_kb: false
+    issue_type: Bug
+    default_estimate: "8h (rough)"
 
 jira:
   project_key_env: JIRA_PROJECT_KEY
@@ -112,8 +144,9 @@ jira:
     access_request:
       issue_type: Task
     unclear:
-      issue_type: Task
+      issue_type: Bug
     unsupported:
-      issue_type: Task
+      issue_type: Bug
   labels:
     - support-intake
+  time_estimate_field: description

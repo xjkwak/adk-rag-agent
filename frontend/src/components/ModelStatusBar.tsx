@@ -44,7 +44,7 @@ export function ModelStatusBar() {
     <Link
       to="/config"
       className={[
-        "fixed bottom-0 left-0 right-0 z-50",
+        "shrink-0 w-full",
         "flex items-center gap-2 px-3 h-7",
         "border-t border-border bg-muted/80 backdrop-blur-sm",
         "text-xs text-muted-foreground hover:text-foreground",

@@ -1,0 +1,414 @@
+version: "1.0"
+source: assets/Amtech/Testing_Framework.md
+scenarios:
+  - id: "1.1"
+    role: plant_operator
+    title: Batch locked in TEST
+    input: >-
+      The optimizer in CoderoadOPS TEST won't let me allocate roll batch RB-9902,
+      it says the batch is locked by another terminal but nobody is logged in.
+    expected:
+      route: route_a
+      entities:
+        module: Production
+        identifier: RB-9902
+        environment: TEST
+      kb_article: KB-006
+      response_must_include:
+        - RB-9902
+        - Force Clear Stale Row Locks
+
+  - id: "1.2"
+    role: plant_operator
+    title: Blank queue screen LIVE — missing data
+    input: >-
+      I cannot pull up the manufacturing machine queue for Corrugator Line 1 in
+      production this afternoon. The screen is totally blank.
+    expected:
+      route: route_b
+      entities:
+        module: Production
+        environment: LIVE
+      response_must_include:
+        - confirm
+
+  - id: "1.3"
+    role: plant_operator
+    title: ERR-402 on production order LIVE
+    input: >-
+      We have a fatal error code ERR-402 when posting raw material consumption
+      on production order PO-7731 in LIVE.
+    expected:
+      route: route_b
+      entities:
+        module: Production
+        identifier: PO-7731
+        environment: LIVE
+      response_must_include:
+        - ERR-402
+        - PO-7731
+        - confirm
+
+  - id: "1.4"
+    role: plant_operator
+    title: Barcode sync warning — missing env
+    input: >-
+      The barcode scanner terminal at the plant floor is throwing an invalid
+      sync warning for finished goods pallet FG-5511 in production.
+    expected:
+      route: ask_missing
+      entities:
+        identifier: FG-5511
+      missing_fields:
+        - environment
+      response_must_include:
+        - FG-5511
+        - Environment
+
+  - id: "1.5"
+    role: plant_operator
+    title: Greyed-out Start button LIVE
+    input: >-
+      I'm trying to start production order PO-8812 but the active start button is
+      greyed out. We are running in the LIVE database.
+    expected:
+      route: route_a
+      entities:
+        module: Production
+        identifier: PO-8812
+        environment: LIVE
+      kb_article: KB-003
+      response_must_include:
+        - PO-8812
+        - Permissions
+
+  - id: "2.1"
+    role: billing_clerk
+    title: Credit limit block on invoice LIVE
+    input: >-
+      I am trying to approve a critical shipment invoice in CoderoadERP LIVE but
+      it says the customer account balance exceeds their matrix limit. The
+      invoice is INV-4001.
+    expected:
+      route: route_a
+      entities:
+        module: Billing
+        identifier: INV-4001
+        environment: LIVE
+      kb_article: KB-004
+      response_must_include:
+        - INV-4001
+        - credit
+
+  - id: "2.2"
+    role: billing_clerk
+    title: Ledger posting timeout TEST
+    input: >-
+      The system throws an unhandled exception timeout whenever I hit 'Post
+      Ledger' for the quarterly report in TEST.
+    expected:
+      route: route_b
+      entities:
+        module: Billing
+        environment: TEST
+      missing_fields: []
+      response_must_include:
+        - Post Ledger
+        - confirm
+
+  - id: "2.3"
+    role: billing_clerk
+    title: PDF download does nothing LIVE
+    input: >-
+      I am clicking the download button for customer statement invoice INV-8891
+      in production and nothing opens up.
+    expected:
+      route: route_a
+      entities:
+        module: Billing
+        identifier: INV-8891
+        environment: LIVE
+      kb_article: KB-002
+      response_must_include:
+        - INV-8891
+        - pop-up
+
+  - id: "2.4"
+    role: billing_clerk
+    title: Zero VAT on invoice LIVE
+    input: >-
+      The tax calculation engine is pulling zero percent VAT on our local invoice
+      INV-3392. This is happening in the real production environment.
+    expected:
+      route: route_b
+      entities:
+        module: Billing
+        identifier: INV-3392
+        environment: LIVE
+      response_must_include:
+        - INV-3392
+        - confirm
+
+  - id: "2.5"
+    role: billing_clerk
+    title: Duplicate sequence block — missing data
+    modality: voice
+    input: >-
+      I am getting a duplicate sequence block warning in the billing screen for
+      a document in CoderoadERP.
+    expected:
+      route: ask_missing
+      entities:
+        module: Billing
+      missing_fields:
+        - identifier
+        - environment
+      response_must_include:
+        - Document
+        - Environment
+
+  - id: "3.1"
+    role: logistics_manager
+    title: Thermal printer unresponsive LIVE
+    input: >-
+      I'm at the loading dock in production and trying to print the bill of
+      lading for guide GD-7782 but the thermal printer is completely
+      unresponsive.
+    expected:
+      route: route_a
+      entities:
+        module: Logistics
+        identifier: GD-7782
+        environment: LIVE
+      kb_article: KB-005
+      response_must_include:
+        - GD-7782
+        - Direct Network IP
+
+  - id: "3.2"
+    role: logistics_manager
+    title: Fleet routing lag TEST
+    input: >-
+      The fleet routing engine between CoderoadERP and CoderoadOPS is lagging.
+      Dispatch guides aren't updating vehicle allocations in TEST.
+    expected:
+      route: route_b
+      entities:
+        module: Logistics
+        environment: TEST
+      response_must_include:
+        - confirm
+
+  - id: "3.3"
+    role: logistics_manager
+    title: Weight tolerance block LIVE
+    input: >-
+      The system is throwing a 'Weight Tolerance Discrepancy' block on load guide
+      GD-1192 in production, and it won't let me release the delivery truck.
+    expected:
+      route: route_b
+      entities:
+        module: Logistics
+        identifier: GD-1192
+        environment: LIVE
+      response_must_include:
+        - GD-1192
+        - confirm
+
+  - id: "3.4"
+    role: logistics_manager
+    title: Bin transfer button inactive TEST
+    input: >-
+      I am trying to process a warehouse bin transfer for item code paper roll
+      PR-4412 in the staging sandbox environment but the transfer button is
+      dead.
+    expected:
+      route: route_a
+      entities:
+        module: Logistics
+        identifier: PR-4412
+        environment: TEST
+      kb_article: KB-003
+      response_must_include:
+        - PR-4412
+        - Permissions
+
+  - id: "3.5"
+    role: logistics_manager
+    title: RMA timeout — missing env
+    input: >-
+      The RMA receiving log module is throwing an unexpected connection timeout
+      screen right now.
+    expected:
+      route: ask_missing
+      entities:
+        module: Logistics
+      missing_fields:
+        - environment
+      response_must_include:
+        - Environment
+
+  - id: "4.1"
+    role: it_administrator
+    title: Account locked after 3 attempts LIVE
+    input: >-
+      A warehouse operator just called me — their CoderoadERP account is locked
+      after 3 failed login attempts. Employee ID is EMP-4421. This is on LIVE.
+    expected:
+      route: route_a
+      entities:
+        module: IT/Admin
+        identifier: EMP-4421
+        environment: LIVE
+      kb_article: KB-007
+      response_must_include:
+        - EMP-4421
+        - Unlock Account
+
+  - id: "4.2"
+    role: it_administrator
+    title: 2-hour sync delay — missing env
+    input: >-
+      We are seeing a sync delay between CoderoadERP and CoderoadOPS. Sales
+      orders posted 2 hours ago in CoderoadERP are not showing up as production
+      orders in CoderoadOPS.
+    expected:
+      route: ask_missing
+      entities:
+        module: IT/Admin
+      missing_fields:
+        - environment
+      response_must_include:
+        - Environment
+
+  - id: "4.3"
+    role: it_administrator
+    title: Backup job Exit Code 2 LIVE
+    input: >-
+      The nightly backup job failed again this morning. The job log shows Exit
+      Code 2 — Partial Execution. This is on the LIVE server.
+    expected:
+      route: route_a
+      entities:
+        module: IT/Admin
+        environment: LIVE
+      kb_article: KB-009
+      missing_fields: []
+      response_must_include:
+        - Exit Code 2
+        - Manual Re-Run
+
+  - id: "4.4"
+    role: it_administrator
+    title: Dashboard blank for all users LIVE+TEST
+    input: >-
+      Multiple users are reporting they cannot access the sales reporting
+      dashboard in CoderoadERP. The panel just shows a blank white screen.
+      Happening in both LIVE and TEST.
+    expected:
+      route: route_b
+      entities:
+        module: Sales
+        environment: LIVE
+      response_must_include:
+        - dashboard
+        - confirm
+
+  - id: "4.5"
+    role: it_administrator
+    title: New user not in AD sync LIVE
+    input: >-
+      A new user account was created for a finance clerk but they are not showing
+      up in the CoderoadERP LIVE user list after Active Directory sync. Their
+      email is jsmith@company.com.
+    expected:
+      route: route_b
+      entities:
+        module: IT/Admin
+        identifier: jsmith@company.com
+        environment: LIVE
+      response_must_include:
+        - jsmith@company.com
+        - confirm
+
+  - id: "5.1"
+    role: sales_manager
+    title: Contract price mismatch LIVE
+    input: >-
+      A sales order I just entered for customer ID CUS-3301 is showing prices
+      that do not match their negotiated contract. The order number is SO-5521
+      and this is in LIVE.
+    expected:
+      route: route_a
+      entities:
+        module: Sales
+        identifier: CUS-3301
+        environment: LIVE
+      kb_article: KB-010
+      response_must_include:
+        - SO-5521
+        - CUS-3301
+
+  - id: "5.2"
+    role: sales_manager
+    title: Duplicate block — missing data
+    input: >-
+      I am trying to create a new customer account but the system is blocking me
+      with a 'Potential Duplicate Detected' warning. The new company is different
+      from the existing one.
+    expected:
+      route: ask_missing
+      entities:
+        module: CRM
+      missing_fields:
+        - identifier
+        - environment
+      response_must_include:
+        - Environment
+
+  - id: "5.3"
+    role: sales_manager
+    title: Credit bureau API timeout LIVE
+    input: >-
+      A new customer account is being blocked because the credit bureau API is
+      timing out. The customer name is Acosta & Partners and this is in LIVE.
+    expected:
+      route: route_b
+      entities:
+        module: CRM
+        environment: LIVE
+      response_must_include:
+        - Acosta
+        - confirm
+
+  - id: "5.4"
+    role: sales_manager
+    title: Blank dashboard after lunch break
+    input: >-
+      My sales dashboard is completely blank — none of the monthly KPI panels are
+      loading. I just came back from lunch.
+    expected:
+      route: ask_missing
+      entities:
+        module: Sales
+      missing_fields:
+        - environment
+      response_must_include:
+        - Environment
+
+  - id: "5.5"
+    role: sales_manager
+    title: Wrong commission split LIVE
+    input: >-
+      The commission split on sales order SO-8834 is wrong. It is showing 100% to
+      one account manager but it should be split 60/40 between two reps. This is
+      in LIVE.
+    expected:
+      route: route_b
+      entities:
+        module: Sales
+        identifier: SO-8834
+        environment: LIVE
+      response_must_include:
+        - SO-8834
+        - confirm

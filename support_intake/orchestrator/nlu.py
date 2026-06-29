@@ -8,7 +8,7 @@ from typing import Any
 
 from google.genai import types
 
-from ..adapters.knowledge_hub import get_intake_search_corpus
+from ..adapters.knowledge_hub import get_intake_search_corpus, normalize_coderoad_collected_fields
 from ..config_loader import get_request_types
 from ..genai_utils import generate_content
 from .field_heuristics import (
@@ -17,6 +17,7 @@ from .field_heuristics import (
     classify_request_heuristic,
     extract_coderoad_fields_heuristic,
 )
+from .intake_fields import extract_explicit_fields
 
 logger = logging.getLogger(__name__)
 
@@ -53,9 +54,18 @@ def classify_request(messages: list[dict[str, str]]) -> str:
     types_cfg = get_request_types()
     allowed = list(types_cfg.keys())
     labels = {k: v.get("label", k) for k, v in types_cfg.items()}
-    prompt = f"""Classify the support request into exactly one category.
+    prompt = f"""Classify the support request into exactly one category for three-flow intake.
 
-Allowed categories (return the key exactly):
+**Flow 1 — New feature request** → feature_request
+User wants new functionality, enhancement, or capability (Jira Story).
+
+**Flow 2 — Known bug** → known_issue or faq
+Bug or problem that may match a documented KB fix; try self-service first.
+
+**Flow 3 — Unknown bug** → technical_incident, unclear, or unsupported
+New/defect incident with no known KB article; opens a Jira Bug with full context.
+
+Allowed category keys (return one exactly):
 {json.dumps(labels, indent=2)}
 
 Conversation:
@@ -87,10 +97,16 @@ def extract_fields(
         return {}
 
     merged = dict(existing)
-    heuristic = extract_coderoad_fields_heuristic(messages, merged, field_names)
+    heuristic = extract_explicit_fields(messages, field_names, merged)
     for key, value in heuristic.items():
         if value is not None:
             merged[key] = value
+
+    if get_intake_search_corpus() == "amtech-demo":
+        coderoad = extract_coderoad_fields_heuristic(messages, merged, field_names)
+        for key, value in coderoad.items():
+            if value is not None:
+                merged[key] = value
 
     missing_for_llm = [
         name
@@ -98,6 +114,8 @@ def extract_fields(
         if merged.get(name) is None or merged.get(name) == ""
     ]
     if not missing_for_llm:
+        if get_intake_search_corpus() == "amtech-demo":
+            normalize_coderoad_collected_fields(merged, _messages_text(messages))
         return {
             name: merged[name]
             for name in field_names
@@ -111,6 +129,9 @@ def extract_fields(
                 logger.info(
                     "Skipping LLM field extraction; missing %s will be collected via prompts",
                     missing_for_llm,
+                )
+                normalize_coderoad_collected_fields(
+                    merged, _messages_text(messages)
                 )
                 return {
                     name: merged[name]
@@ -141,9 +162,18 @@ Respond with JSON only: a flat object with field names as keys.
         ),
     )
     result = _parse_json_response(response_text or "{}")
+    for name in missing_for_llm:
+        val = result.get(name)
+        if val is not None and val != "" and val != "null":
+            merged[name] = val
+
+    if get_intake_search_corpus() == "amtech-demo":
+        full_text = _messages_text(messages)
+        normalize_coderoad_collected_fields(merged, full_text)
+
     extracted: dict[str, Any] = {}
     for name in field_names:
-        val = merged.get(name) or result.get(name)
+        val = merged.get(name)
         if val is not None and val != "" and val != "null":
             extracted[name] = val
     return extracted

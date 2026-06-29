@@ -1,5 +1,18 @@
 const API_BASE = "/api/hub/intake";
 
+export interface IntakeAttachmentMeta {
+  filename: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}
+
+export interface IntakeMultiInputPayload {
+  text?: string;
+  audio?: Blob;
+  audioMimeType?: string;
+  attachments?: File[];
+}
+
 export interface IntakeState {
   conversationId: string;
   status: string;
@@ -14,7 +27,12 @@ export interface IntakeState {
     priority?: string;
     environment?: string;
     labels?: string[];
+    intake_flow?: string;
+    flow_label?: string;
+    time_estimate?: string;
   };
+  intakeFlow?: string;
+  flowLabel?: string;
   jiraIssueKey?: string;
   jiraIssueUrl?: string;
   kbAnswer?: string;
@@ -28,6 +46,10 @@ export interface UiHints {
   awaitingSolutionConfirmation?: boolean;
   showJiraCreated?: boolean;
   isComplete?: boolean;
+  intakeFlow?: string;
+  flowLabel?: string;
+  awaitingFields?: string[];
+  fieldOptions?: Record<string, { value: string; label: string }[]>;
 }
 
 export interface KbArticle {
@@ -88,6 +110,31 @@ export async function sendIntakeMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ conversation_id: conversationId, message }),
+  });
+  const raw = await handleResponse<Record<string, unknown>>(response);
+  return normalizeMessageResponse(raw);
+}
+
+export async function sendIntakeMultiInput(
+  conversationId: string,
+  payload: IntakeMultiInputPayload,
+): Promise<IntakeMessageResponse> {
+  const form = new FormData();
+  form.append("conversation_id", conversationId);
+  form.append("message", payload.text ?? "");
+
+  if (payload.audio && payload.audioMimeType) {
+    const ext = payload.audioMimeType.split("/")[1] || "webm";
+    form.append("audio", payload.audio, `recording.${ext}`);
+  }
+
+  for (const file of payload.attachments ?? []) {
+    form.append("attachments", file, file.name);
+  }
+
+  const response = await fetch(`${API_BASE}/message/multi`, {
+    method: "POST",
+    body: form,
   });
   const raw = await handleResponse<Record<string, unknown>>(response);
   return normalizeMessageResponse(raw);

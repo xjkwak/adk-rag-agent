@@ -19,6 +19,32 @@ Implementation lives in [`support_intake/adapters/jira_mcp.py`](support_intake/a
 
 ---
 
+## Core Agent Capabilities
+
+The Support Intake Assistant is built around three core pillars to ensure high-quality, structured support routing and communication:
+
+### 1. Smart Triage
+The agent automatically classifies incoming support requests into one of three predefined workflow flows rather than treating all inputs uniformly:
+*   **Flow 1 (Feature Request / `feature_request`):** Routed as a user story directly to the ticket preview path (Jira Story).
+*   **Flow 2 (Known Bug / `known_issue` or `faq`):** Automatically searches the Knowledge Base (`amtech-demo` corpus) to attempt immediate self-service resolution.
+*   **Flow 3 (Unknown Bug / `technical_incident`, `unclear`, `unsupported`, or `access_request`):** Bypasses self-service (or proceeds when KB fails) and routes directly to the ticket preview path (Jira Bug/Task).
+*   **Implementation:** Request classification is governed by [classify_request](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/nlu.py#L48) in [`support_intake/orchestrator/nlu.py`](support_intake/orchestrator/nlu.py) using heuristic pattern matching ([classify_request_heuristic](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/field_heuristics.py#L31) in [`support_intake/orchestrator/field_heuristics.py`](support_intake/orchestrator/field_heuristics.py)) and fallback LLM-based parsing. Flow mapping and checks are controlled by [`support_intake/orchestrator/flows.py`](support_intake/orchestrator/flows.py).
+
+### 2. Ticket Quality & Completeness
+To avoid half-baked tickets and inefficient back-and-forth communication, the agent enforces a strict data completeness policy:
+*   **Critical Variables:** The agent extracts four key context variables from the conversation: **Module**, **Identifier** (e.g. document/record ID), **Description** (what happened), and **Environment** (LIVE vs. TEST).
+*   **Batch Follow-ups:** If any of these required variables are missing, the agent halts ticket creation/KB routing and prompts the user for *all* missing variables in a single, consolidated follow-up message.
+*   **Heuristic + LLM Extraction:** The agent extracts explicitly stated identifiers (e.g., regex patterns for invoices/batches) and environments using heuristics, falling back to LLM-based extraction only when needed.
+*   **Implementation:** Extraction and gap analysis are handled by [`support_intake/orchestrator/intake_fields.py`](support_intake/orchestrator/intake_fields.py) (via [extract_explicit_fields](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/intake_fields.py#L136), [compute_missing_fields](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/intake_fields.py#L208), and [build_intake_batch_follow_up](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/intake_fields.py#L266)).
+
+### 3. Ticket Detail Reproduction
+When escalating to Jira (Route B), the agent automatically reproduces the issue's full technical details in a highly structured format instead of forwarding a raw conversation log:
+*   **Summarization:** Gemini builds a clear, concise issue title (max 80 characters) and a structured Markdown description.
+*   **Reproduction & Context:** The ticket description contains the structured request type, exact environment details, business impact, and a clear list of **steps to reproduce** if known.
+*   **Implementation:** Title and description generation are performed by [generate_ticket_summary](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/nlu.py#L218) and [generate_conversation_summary](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/nlu.py#L182) in [`support_intake/orchestrator/nlu.py`](support_intake/orchestrator/nlu.py), with fallback rule-based builders ([build_ticket_title_heuristic](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/field_heuristics.py#L145) and [build_ticket_description_heuristic](file:///Users/cristianmamani/Learning/2025/ADK/adk-rag-agent/support_intake/orchestrator/field_heuristics.py#L171)) in [`support_intake/orchestrator/field_heuristics.py`](support_intake/orchestrator/field_heuristics.py).
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -395,3 +421,38 @@ The POC creates issues only. Status transitions (`jira_transition_issue`) are av
 - Support Intake overall: implementation in `support_intake/` package
 - Env templates: [`.env.sample`](.env.sample), [`knowledge_hub/.env.example`](knowledge_hub/.env.example)
 - MCP tool reference: Cursor MCP descriptors under `user-jira-mcp` (`jira_create_issue`)
+
+---
+
+## Evals (Amtech Testing Framework)
+
+Automated evals validate Support Intake against the 25 scenarios in
+[`assets/Amtech/Testing_Framework.md`](assets/Amtech/Testing_Framework.md).
+
+| Layer | Mode | What it checks |
+|-------|------|----------------|
+| 1 | `fast` | Heuristic entity extraction and missing-field detection |
+| 2 | `integration` | Full orchestrator with mocked KB (default for CI/UI) |
+| 3 | `live` | Real Gemini + `amtech-demo` corpus; optional LLM judge |
+
+**UI:** open **Evals** in the Knowledge HUB nav (`/evals`). Choose a mode,
+run all scenarios or a single row, and inspect per-check pass/fail detail.
+
+**CLI:**
+
+```bash
+# CI (fast + integration)
+PYTHONPATH=. uv run pytest tests/intake_evals/ -q \
+  --ignore=tests/intake_evals/test_eval_layer3_live.py
+
+# Live (requires API keys + seeded amtech-demo corpus)
+RUN_LIVE_EVALS=1 PYTHONPATH=. uv run pytest tests/intake_evals/test_eval_layer3_live.py -m live
+```
+
+**API:**
+
+- `GET /hub/intake/evals/scenarios`
+- `GET /hub/intake/evals/scenarios/{id}`
+- `POST /hub/intake/evals/run` — body `{ "mode": "fast|integration|live", "scenario_ids": [] }`
+
+Dataset: [`support_intake/evals/datasets/amtech_scenarios.yaml`](support_intake/evals/datasets/amtech_scenarios.yaml)

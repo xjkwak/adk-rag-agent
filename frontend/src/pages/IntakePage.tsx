@@ -2,18 +2,21 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { IntakeInputForm } from "@/components/IntakeInputForm";
+import { IntakeInputForm, type IntakeInputPayload } from "@/components/IntakeInputForm";
 import { KbArticleCard } from "@/components/KbArticleCard";
 import { SolutionFeedback } from "@/components/SolutionFeedback";
+import { MissingFieldsPanel } from "@/components/MissingFieldsPanel";
 import { TicketPreviewCard } from "@/components/TicketPreviewCard";
 import { JiraCreatedBanner } from "@/components/JiraCreatedBanner";
 import {
   createIntakeSession,
   sendIntakeMessage,
+  sendIntakeMultiInput,
   confirmIntakeTicket,
   type IntakeState,
   type UiHints,
   type KbArticle,
+  type IntakeAttachmentMeta,
 } from "@/api/intake";
 import { cn } from "@/utils";
 import { Loader2 } from "lucide-react";
@@ -23,6 +26,36 @@ interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   articles?: KbArticle[];
+  attachments?: IntakeAttachmentMeta[];
+  hasAudio?: boolean;
+}
+
+function buildUserDisplayMessage(payload: IntakeInputPayload): string {
+  const parts: string[] = [];
+  if (payload.text?.trim()) {
+    parts.push(payload.text.trim());
+  }
+  if (payload.audio) {
+    parts.push("🎤 Voice note");
+  }
+  if (
+    parts.length === 0 &&
+    payload.attachments &&
+    payload.attachments.length > 0
+  ) {
+    parts.push("Shared attachments");
+  }
+  return parts.join("\n");
+}
+
+function buildUserAttachmentMeta(
+  payload: IntakeInputPayload,
+): IntakeAttachmentMeta[] {
+  return (payload.attachments ?? []).map((file) => ({
+    filename: file.name,
+    mimeType: file.type || undefined,
+    sizeBytes: file.size,
+  }));
 }
 
 const SCROLL_NEAR_BOTTOM_PX = 80;
@@ -138,16 +171,45 @@ export default function IntakePage() {
   );
 
   const handleSend = useCallback(
-    async (text: string) => {
+    async (payload: IntakeInputPayload | string) => {
       if (!conversationId || isLoading) return;
+
+      const normalized: IntakeInputPayload =
+        typeof payload === "string" ? { text: payload } : payload;
+
+      const hasMultiInput =
+        Boolean(normalized.audio) ||
+        Boolean(normalized.attachments && normalized.attachments.length > 0);
+
+      if (
+        !normalized.text?.trim() &&
+        !normalized.audio &&
+        !(normalized.attachments && normalized.attachments.length > 0)
+      ) {
+        return;
+      }
+
       shouldAutoScrollRef.current = true;
       setIsLoading(true);
       setMessages((prev) => [
         ...prev,
-        { id: Date.now().toString() + "-u", role: "user", content: text },
+        {
+          id: Date.now().toString() + "-u",
+          role: "user",
+          content: buildUserDisplayMessage(normalized),
+          attachments: buildUserAttachmentMeta(normalized),
+          hasAudio: Boolean(normalized.audio),
+        },
       ]);
       try {
-        const resp = await sendIntakeMessage(conversationId, text);
+        const resp = hasMultiInput
+          ? await sendIntakeMultiInput(conversationId, {
+              text: normalized.text,
+              audio: normalized.audio?.blob,
+              audioMimeType: normalized.audio?.mimeType,
+              attachments: normalized.attachments,
+            })
+          : await sendIntakeMessage(conversationId, normalized.text!.trim());
         applyResponse(resp.assistantMessage, resp.state, resp.uiHints, resp.articles);
       } catch (e) {
         setMessages((prev) => [
@@ -238,13 +300,35 @@ export default function IntakePage() {
               {msg.role === "assistant" ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
               ) : (
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                <div className="space-y-2">
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <ul className="text-xs opacity-90 space-y-1">
+                      {msg.attachments.map((file) => (
+                        <li key={file.filename}>📎 {file.filename}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
               {msg.articles && msg.articles.length > 0 && (
                 <KbArticleCard articles={msg.articles} />
               )}
             </div>
           ))}
+
+          {uiHints?.awaitingFields &&
+            uiHints.awaitingFields.length > 0 &&
+            !isLoading &&
+            !uiHints.awaitingSolutionConfirmation &&
+            !uiHints.showTicketPreview && (
+              <MissingFieldsPanel
+                awaitingFields={uiHints.awaitingFields}
+                fieldOptions={uiHints.fieldOptions}
+                onSubmit={(msg) => void handleSend(msg)}
+                disabled={isLoading}
+              />
+            )}
 
           {uiHints?.awaitingSolutionConfirmation && !isLoading && (
             <SolutionFeedback
@@ -278,10 +362,10 @@ export default function IntakePage() {
         </ScrollArea>
       </div>
 
-      <div className="shrink-0 border-t border-border p-4 bg-background/95">
+      <div className="shrink-0 border-t border-border p-4 pb-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="max-w-3xl mx-auto">
           <IntakeInputForm
-            onSubmit={(m) => void handleSend(m)}
+            onSubmit={(payload) => void handleSend(payload)}
             isLoading={isLoading}
           />
         </div>

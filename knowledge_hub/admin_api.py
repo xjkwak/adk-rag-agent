@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from . import settings_store
 from .config import USE_LOCAL_RAG
-from .amtech_instruction import AMTECH_INSTRUCTION
+from .tenants import get_tenant, list_tenant_summaries, seed_tenant_corpus
 from .openai_models import get_available_openai_models
 from .provider_utils import (
     get_available_providers,
@@ -37,7 +37,18 @@ class ProviderInfo(BaseModel):
     label: str
 
 
+class TenantSummary(BaseModel):
+    id: str
+    label: str
+    description: str
+    default_corpus: str
+    assets_path: str
+    asset_files: list[str]
+
+
 class AgentConfigResponse(BaseModel):
+    tenant:              str
+    available_tenants:   list[TenantSummary]
     model:               str
     instruction:         str
     default_instruction: str
@@ -51,6 +62,7 @@ class AgentConfigResponse(BaseModel):
 
 
 class AgentConfigUpdate(BaseModel):
+    tenant:         str | None = None
     model:          str | None = None
     instruction:    str | None = None
     default_corpus: str | None = None
@@ -88,6 +100,17 @@ class CorpusMutationResponse(BaseModel):
     corpus_name: str
     display_name: str | None = None
     corpus_created: bool | None = None
+
+
+class TenantSeedResponse(BaseModel):
+    status: str
+    message: str
+    tenant: str
+    corpus_name: str
+    files_added: int = 0
+    files_skipped: int = 0
+    chunk_count: int = 0
+    asset_files: list[str] = Field(default_factory=list)
 
 
 def _apply_agent_runtime() -> None:
@@ -131,10 +154,16 @@ def _build_agent_config_response(
     active_key = raw_key or (env_key or "")
 
     providers = [ProviderInfo(**p) for p in get_available_providers()]
+    tenant_id = settings.get("tenant", "peakrock")
+    tenant_profile = get_tenant(tenant_id)
     return AgentConfigResponse(
+        tenant=tenant_id,
+        available_tenants=[
+            TenantSummary(**summary) for summary in list_tenant_summaries()
+        ],
         model=settings["model"],
         instruction=settings["instruction"],
-        default_instruction=AMTECH_INSTRUCTION.strip(),
+        default_instruction=tenant_profile.instruction.strip(),
         available_models=settings_store.get_available_gemini_models(
             include=settings["model"]
             if settings.get("provider", "gemini") == "gemini"
@@ -158,7 +187,8 @@ def get_agent_config() -> AgentConfigResponse:
 @router.put("/agent", response_model=AgentConfigResponse)
 def update_agent_config(body: AgentConfigUpdate) -> AgentConfigResponse:
     nothing = (
-        body.model is None
+        body.tenant is None
+        and body.model is None
         and body.instruction is None
         and body.default_corpus is None
         and body.provider is None
@@ -181,6 +211,7 @@ def update_agent_config(body: AgentConfigUpdate) -> AgentConfigResponse:
 
     try:
         settings_store.save_settings(
+            tenant=body.tenant,
             model=body.model,
             instruction=body.instruction,
             default_corpus=body.default_corpus,
@@ -199,6 +230,44 @@ def reset_agent_config() -> AgentConfigResponse:
     settings_store.reset_agent_settings()
     _apply_agent_runtime()
     return get_agent_config()
+
+
+@router.get("/tenants", response_model=list[TenantSummary])
+def list_tenants() -> list[TenantSummary]:
+    return [TenantSummary(**summary) for summary in list_tenant_summaries()]
+
+
+@router.get("/tenants/{tenant_id}")
+def get_tenant_profile(tenant_id: str) -> dict[str, Any]:
+    try:
+        return get_tenant(tenant_id).to_profile_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/tenants/{tenant_id}/seed", response_model=TenantSeedResponse)
+def seed_tenant_assets(tenant_id: str) -> TenantSeedResponse:
+    try:
+        result = seed_tenant_corpus(tenant_id, incremental=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("message", "Failed to seed tenant corpus"),
+        )
+
+    return TenantSeedResponse(
+        status=result.get("status", "success"),
+        message=result.get("message", ""),
+        tenant=result.get("tenant", tenant_id),
+        corpus_name=result.get("corpus_name", ""),
+        files_added=int(result.get("files_added", 0)),
+        files_skipped=int(result.get("files_skipped", 0)),
+        chunk_count=int(result.get("chunk_count", 0)),
+        asset_files=list(result.get("asset_files", [])),
+    )
 
 
 @router.get("/corpora", response_model=CorpusListResponse)
